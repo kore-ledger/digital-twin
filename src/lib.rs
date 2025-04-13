@@ -597,14 +597,15 @@ impl Element {
 enum Scopes {
     Temporal(u64),
     TimeZone(String),
+    Tag(String)
 }
 
 // Define the events of the contract.
 #[derive(Serialize, Deserialize, Clone)]
 enum Events {
-    ChangeTypes { operation: ChangeTypes },
-    ChangeProductionSystem { operation: ChangeProductionSystem },
-    RegisterData { data: UnitData },
+    ChangeTypes(ChangeTypes),
+    ChangeProductionSystem(ChangeProductionSystem),
+    RegisterData(UnitData),
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -650,7 +651,7 @@ fn contract_logic(
 ) {
     let state = &mut contract_result.final_state;
     match context.event.clone() {
-        Events::ChangeTypes { operation } => {
+        Events::ChangeTypes ( operation ) => {
             if state.version == 0 {
                 contract_result.error = "The first event must be Init event".to_owned();
                 return;
@@ -705,7 +706,7 @@ fn contract_logic(
                 }
             }
         }
-        Events::ChangeProductionSystem { operation } => match operation {
+        Events::ChangeProductionSystem (operation) => match operation {
             ChangeProductionSystem::Init { name, unit_process } => {
                 if name == "" {
                     contract_result.error = "System name can not be empty".to_owned();
@@ -826,7 +827,7 @@ fn contract_logic(
                 state.version += 1;
             }
         },
-        Events::RegisterData { data } => {
+        Events::RegisterData(data) => {
             if state.version == 0 {
                 contract_result.error = "The first event must be Init event".to_owned();
                 return;
@@ -908,8 +909,7 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::RegisterData {
-                data: UnitData {
+            event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
                     main_outputs: Some(vec![Puts::Data(Data {
                         name: "Farmer data".to_owned(),
@@ -922,7 +922,7 @@ mod tests {
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -978,8 +978,7 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::RegisterData {
-                data: UnitData {
+            event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
                     main_outputs: Some(vec![Puts::Data(Data {
                         name: "Farmer data".to_owned(),
@@ -990,7 +989,7 @@ mod tests {
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1042,8 +1041,7 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::RegisterData {
-                data: UnitData {
+            event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
                     main_outputs: Some(vec![Puts::Data(Data {
                         name: "Farmer data".to_owned(),
@@ -1054,7 +1052,7 @@ mod tests {
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1106,8 +1104,7 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::RegisterData {
-                data: UnitData {
+            event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
                     main_outputs: Some(vec![Puts::Data(Data {
                         name: "Farmer data".to_owned(),
@@ -1118,7 +1115,7 @@ mod tests {
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1169,8 +1166,7 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::RegisterData {
-                data: UnitData {
+            event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
                     main_outputs: Some(vec![Puts::Data(Data {
                         name: "Farmer data".to_owned(),
@@ -1181,7 +1177,7 @@ mod tests {
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1223,8 +1219,7 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::RegisterData {
-                data: UnitData {
+            event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
                     main_outputs: Some(vec![Puts::Data(Data {
                         name: "Farmer data".to_owned(),
@@ -1235,7 +1230,7 @@ mod tests {
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1285,8 +1280,7 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::RegisterData {
-                data: UnitData {
+            event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
                     main_outputs: Some(vec![Puts::Data(Data {
                         name: "Farmer data".to_owned(),
@@ -1297,7 +1291,7 @@ mod tests {
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1349,8 +1343,7 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::RegisterData {
-                data: UnitData {
+            event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
                     main_outputs: Some(vec![Puts::Data(Data {
                         name: "Farmer data".to_owned(),
@@ -1361,7 +1354,7 @@ mod tests {
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1418,8 +1411,7 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::RegisterData {
-                data: UnitData {
+            event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
                     main_outputs: Some(vec![Puts::Data(Data {
                         name: "Farmer data".to_owned(),
@@ -1430,7 +1422,7 @@ mod tests {
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1488,11 +1480,10 @@ mod tests {
             .insert("value".to_owned(), DynamicType::String);
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::ChangeTypes {
-                operation: ChangeTypes::Add {
+            event: Events::ChangeTypes(ChangeTypes::Add {
                     types: vec![("Another User".to_owned(), custom_type)],
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1550,14 +1541,13 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::ChangeTypes {
-                operation: ChangeTypes::Add {
+            event: Events::ChangeTypes(ChangeTypes::Add {
                     types: vec![
                         ("Another User".to_owned(), custom_type),
                         ("Fake User".to_owned(), custom_type_2),
                     ],
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1605,11 +1595,10 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::ChangeTypes {
-                operation: ChangeTypes::Add {
+            event: Events::ChangeTypes(ChangeTypes::Add {
                     types: vec![("Another User".to_owned(), custom_type)],
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1666,8 +1655,7 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::RegisterData {
-                data: UnitData {
+            event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
                     main_outputs: Some(vec![Puts::Data(Data {
                         name: "Farmer data".to_owned(),
@@ -1678,7 +1666,7 @@ mod tests {
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1711,11 +1699,10 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::ChangeProductionSystem {
-                operation: ChangeProductionSystem::NewName {
+            event: Events::ChangeProductionSystem(ChangeProductionSystem::NewName {
                     name: "wine process 2".to_owned(),
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1738,12 +1725,11 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::ChangeProductionSystem {
-                operation: ChangeProductionSystem::Init {
+            event: Events::ChangeProductionSystem(ChangeProductionSystem::Init {
                     name: "wine process".to_owned(),
                     unit_process: vec![],
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1802,13 +1788,12 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::ChangeProductionSystem {
-                operation: ChangeProductionSystem::Modify {
+            event: Events::ChangeProductionSystem(ChangeProductionSystem::Modify {
                     delete: vec![],
                     modification: vec![],
                     add: vec![unit_process_1],
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -1959,13 +1944,12 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::ChangeProductionSystem {
-                operation: ChangeProductionSystem::Modify {
+            event: Events::ChangeProductionSystem(ChangeProductionSystem::Modify {
                     delete: vec![],
                     modification: vec![],
                     add: vec![unit_process_2, unit_process_3],
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -2138,13 +2122,12 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::ChangeProductionSystem {
-                operation: ChangeProductionSystem::Modify {
+            event: Events::ChangeProductionSystem(ChangeProductionSystem::Modify {
                     delete: vec!["grape treading".to_owned(), "bottling of wine".to_owned()],
                     modification: vec![],
                     add: vec![],
                 },
-            },
+            ),
             is_owner: false,
         };
 
@@ -2219,13 +2202,12 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::ChangeProductionSystem {
-                operation: ChangeProductionSystem::Modify {
+            event: Events::ChangeProductionSystem(ChangeProductionSystem::Modify {
                     delete: vec![],
                     modification: vec![("grape treading".to_owned(), unit_process_2)],
                     add: vec![],
                 },
-            },
+            ),
             is_owner: false,
         };
         let mut result = sdk::ContractResult::new(init_state);
@@ -2329,7 +2311,7 @@ mod tests {
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
-            event: Events::RegisterData { data: data_update },
+            event: Events::RegisterData(data_update),
             is_owner: false,
         };
 
