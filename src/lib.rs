@@ -10,10 +10,10 @@ fn has_cycle(
     stack: &mut HashSet<String>,
 ) -> bool {
     if stack.contains(node) {
-        return true; // Se encontró un ciclo
+        return true;
     }
     if visited.contains(node) {
-        return false; // Ya fue procesado sin ciclo
+        return false;
     }
 
     visited.insert(node.to_string());
@@ -45,7 +45,7 @@ pub fn check_cycle(cycle_types: HashMap<String, Vec<String>>) -> Result<(), Stri
 
     Ok(())
 }
-/// Define the state of the contract.
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct ProductionSystem {
     pub name: String,
@@ -103,13 +103,11 @@ impl Fields {
         for (custom_type_name, custom_type_type) in self.0.clone() {
             if let Some(field_type) = data_object.remove(&custom_type_name) {
                 custom_type_type.deserialize(field_type, custom_types.clone())?;
-            } else {
-                if !custom_type_type.is_option() {
-                    return Err(format!(
-                        "A field in type do not exist in data: {}",
-                        custom_type_name
-                    ));
-                }
+            } else if !custom_type_type.is_option() {
+                return Err(format!(
+                    "A field in type do not exist in data: {}",
+                    custom_type_name
+                ));
             };
         }
 
@@ -137,10 +135,7 @@ pub enum DynamicType {
 
 impl DynamicType {
     fn is_option(&self) -> bool {
-        match self {
-            DynamicType::Option(_) => true,
-            _ => false,
-        }
+        matches!(self, DynamicType::Option(_))
     }
 
     fn deserialize(
@@ -188,7 +183,9 @@ impl DynamicType {
                 };
 
                 if obj_dynamic.len() != 1 {
-                    return Err("Can not deserialize, in Enum Object must have one field".to_owned());
+                    return Err(
+                        "Can not deserialize, in Enum Object must have one field".to_owned()
+                    );
                 }
 
                 for (value_name, value_val) in obj_dynamic {
@@ -218,17 +215,14 @@ impl DynamicType {
                     );
                 }
 
-
                 for (type_field, type_dyn) in obj_type.0.clone() {
                     if let Some(value) = obj_dynamic.remove(&type_field) {
                         type_dyn.deserialize(value, custom_types.clone())?;
-                    } else {
-                        if !type_dyn.is_option() {
-                            return Err(format!(
-                                "Can not deserialize, Value has not {} field",
-                                type_field
-                            ));
-                        }
+                    } else if !type_dyn.is_option() {
+                        return Err(format!(
+                            "Can not deserialize, Value has not {} field",
+                            type_field
+                        ));
                     };
                 }
 
@@ -268,10 +262,10 @@ impl DynamicType {
             }
             DynamicType::Type(c_type) => {
                 if c_type.is_empty() {
-                    return Err(format!("Custom type con not be empty"));
+                    return Err("Custom type con not be empty".to_string());
                 }
 
-                if custom_types.get(c_type).is_none() {
+                if !custom_types.contains_key(c_type) {
                     return Err(format!("Type {} does not exist", c_type));
                 }
 
@@ -293,7 +287,6 @@ struct UnitData {
     pub scope: Option<Vec<Scopes>>,
 }
 
-// Define the process of the production system with the elements.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct UnitProcess {
     pub name: String,
@@ -410,7 +403,7 @@ impl UnitProcess {
         if let Some(scopes) = unit.scope {
             self.scope = scopes;
         }
-        
+
         Ok(())
     }
 }
@@ -478,15 +471,13 @@ impl Data {
     }
 }
 
-// Context of the element or unit process.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 enum Scopes {
     Temporal(u64),
     TimeZone(String),
-    Tag(String)
+    Tag(String),
 }
 
-// Define the events of the contract.
 #[derive(Serialize, Deserialize, Clone)]
 enum Events {
     ChangeTypes(ChangeTypes),
@@ -500,7 +491,6 @@ enum ChangeTypes {
     Delete { names: Vec<String> },
 }
 
-// Operations to change the state of the contract.
 #[derive(Serialize, Deserialize, Clone)]
 enum ChangeProductionSystem {
     Init {
@@ -537,7 +527,7 @@ fn contract_logic(
 ) {
     let state = &mut contract_result.final_state;
     match context.event.clone() {
-        Events::ChangeTypes ( operation ) => {
+        Events::ChangeTypes(operation) => {
             if state.version == 0 {
                 contract_result.error = "The first event must be Init event".to_owned();
                 return;
@@ -592,9 +582,9 @@ fn contract_logic(
                 }
             }
         }
-        Events::ChangeProductionSystem (operation) => match operation {
+        Events::ChangeProductionSystem(operation) => match operation {
             ChangeProductionSystem::Init { name, unit_process } => {
-                if name == "" {
+                if name.is_empty() {
                     contract_result.error = "System name can not be empty".to_owned();
                     return;
                 }
@@ -654,24 +644,23 @@ fn contract_logic(
                     return;
                 }
 
-                // Incrementar la versión si se realizaron cambios
                 if delete.is_empty() && modification.is_empty() && add.is_empty() {
                     contract_result.error = "To emit a modification event at least the modifications, add or delete vector cannot be empty".to_owned();
                     return;
                 }
 
-                // 1. Eliminar procesos
                 for name in delete.clone() {
                     if let Some(pos) = state.unit_process.iter().position(|x| x.name == name) {
                         state.unit_process.remove(pos);
                     } else {
-                        // Si un proceso a eliminar no existe, devolver
-                        contract_result.error = format!("The process to be eliminated {} does not exist in the production system", name);
+                        contract_result.error = format!(
+                            "The process to be eliminated {} does not exist in the production system",
+                            name
+                        );
                         return;
                     }
                 }
 
-                // 2. Modificar procesos
                 for (name, process) in modification.clone() {
                     if let Err(e) = process.check_data(state.custom_types.clone()) {
                         contract_result.error = e;
@@ -681,13 +670,14 @@ fn contract_logic(
                     if let Some(existing) = state.unit_process.iter_mut().find(|x| x.name == name) {
                         *existing = process;
                     } else {
-                        // Si un proceso a modificar no existe, devolver
-                        contract_result.error = format!("The process to be modificated {} does not exist in the production system", name);
+                        contract_result.error = format!(
+                            "The process to be modificated {} does not exist in the production system",
+                            name
+                        );
                         return;
                     }
                 }
 
-                // 3. Añadir nuevos procesos
                 for unit_process in add {
                     if let Err(e) = unit_process.check_data(state.custom_types.clone()) {
                         contract_result.error = e;
@@ -748,12 +738,11 @@ mod tests {
     use std::{collections::HashMap, vec};
 
     use crate::{
-        contract_logic, ChangeProductionSystem, ChangeTypes, Data, DynamicType, Events,
-        Fields, ProductionSystem, Scopes, UnitData, UnitProcess,
+        ChangeProductionSystem, ChangeTypes, Data, DynamicType, Events, Fields, ProductionSystem,
+        Scopes, UnitData, UnitProcess, contract_logic,
     };
     use kore_contract_sdk as sdk;
     use serde_json::json;
-
 
     #[test]
     fn register_types_option_type_null() {
@@ -765,7 +754,9 @@ mod tests {
         );
 
         let mut custom_type_2 = Fields(HashMap::new());
-        custom_type_2.0.insert("data".to_owned(), DynamicType::Type("User".to_owned()));
+        custom_type_2
+            .0
+            .insert("data".to_owned(), DynamicType::Type("User".to_owned()));
 
         let mut types = HashMap::new();
         types.insert("User".to_owned(), custom_type);
@@ -796,19 +787,18 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
-                    name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Data {
-                        name: "Farmer data".to_owned(),
-                        type_name: "UserData".to_owned(),
-                        content: json!({"data": {
-                            "name": "Andres"
-                        }}),
-                    }]),
-                    inputs: None,
-                    other_outputs: None,
-                    scope: Some(vec![Scopes::Temporal(5)]),
-                },
-            ),
+                name: "grape treading".to_owned(),
+                main_outputs: Some(vec![Data {
+                    name: "Farmer data".to_owned(),
+                    type_name: "UserData".to_owned(),
+                    content: json!({"data": {
+                        "name": "Andres"
+                    }}),
+                }]),
+                inputs: None,
+                other_outputs: None,
+                scope: Some(vec![Scopes::Temporal(5)]),
+            }),
             is_owner: false,
         };
 
@@ -816,16 +806,18 @@ mod tests {
 
         contract_logic(&context, &mut result);
 
-        
         println!("{}", result.error);
         assert!(result.error.is_empty());
-        
+
         let data = result.final_state.unit_process[0].main_outputs[0].clone();
         assert_eq!(data.name, "Farmer data");
         assert_eq!(data.type_name, "UserData");
-        assert_eq!(data.content, json!({"data": {
-            "name": "Andres"
-        }}));
+        assert_eq!(
+            data.content,
+            json!({"data": {
+                "name": "Andres"
+            }})
+        );
     }
 
     #[test]
@@ -862,17 +854,16 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
-                    name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Data {
-                        name: "Farmer data".to_owned(),
-                        type_name: "User".to_owned(),
-                        content: json!({"name": "Andres"}),
-                    }]),
-                    inputs: None,
-                    other_outputs: None,
-                    scope: Some(vec![Scopes::Temporal(5)]),
-                },
-            ),
+                name: "grape treading".to_owned(),
+                main_outputs: Some(vec![Data {
+                    name: "Farmer data".to_owned(),
+                    type_name: "User".to_owned(),
+                    content: json!({"name": "Andres"}),
+                }]),
+                inputs: None,
+                other_outputs: None,
+                scope: Some(vec![Scopes::Temporal(5)]),
+            }),
             is_owner: false,
         };
 
@@ -880,7 +871,6 @@ mod tests {
 
         contract_logic(&context, &mut result);
 
-        
         assert!(result.error.is_empty());
         let data = result.final_state.unit_process[0].main_outputs[0].clone();
         assert_eq!(data.name, "Farmer data");
@@ -891,7 +881,10 @@ mod tests {
     #[test]
     fn register_types_option_all_null() {
         let mut custom_type = Fields(HashMap::new());
-        custom_type.0.insert("name".to_owned(), DynamicType::Option(Box::new(DynamicType::String)));
+        custom_type.0.insert(
+            "name".to_owned(),
+            DynamicType::Option(Box::new(DynamicType::String)),
+        );
         custom_type.0.insert(
             "value".to_owned(),
             DynamicType::Option(Box::new(DynamicType::String)),
@@ -922,17 +915,16 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
-                    name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Data {
-                        name: "Farmer data".to_owned(),
-                        type_name: "User".to_owned(),
-                        content: json!({}),
-                    }]),
-                    inputs: None,
-                    other_outputs: None,
-                    scope: Some(vec![Scopes::Temporal(5)]),
-                },
-            ),
+                name: "grape treading".to_owned(),
+                main_outputs: Some(vec![Data {
+                    name: "Farmer data".to_owned(),
+                    type_name: "User".to_owned(),
+                    content: json!({}),
+                }]),
+                inputs: None,
+                other_outputs: None,
+                scope: Some(vec![Scopes::Temporal(5)]),
+            }),
             is_owner: false,
         };
 
@@ -940,12 +932,11 @@ mod tests {
 
         contract_logic(&context, &mut result);
 
-        
         assert!(result.error.is_empty());
         let data = result.final_state.unit_process[0].main_outputs[0].clone();
-            assert_eq!(data.name, "Farmer data");
-            assert_eq!(data.type_name, "User");
-            assert_eq!(data.content, json!({}));
+        assert_eq!(data.name, "Farmer data");
+        assert_eq!(data.type_name, "User");
+        assert_eq!(data.content, json!({}));
     }
 
     #[test]
@@ -982,17 +973,16 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
-                    name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Data {
-                        name: "Farmer data".to_owned(),
-                        type_name: "User".to_owned(),
-                        content: json!({"name": "Andres", "value": "val"}),
-                    }]),
-                    inputs: None,
-                    other_outputs: None,
-                    scope: Some(vec![Scopes::Temporal(5)]),
-                },
-            ),
+                name: "grape treading".to_owned(),
+                main_outputs: Some(vec![Data {
+                    name: "Farmer data".to_owned(),
+                    type_name: "User".to_owned(),
+                    content: json!({"name": "Andres", "value": "val"}),
+                }]),
+                inputs: None,
+                other_outputs: None,
+                scope: Some(vec![Scopes::Temporal(5)]),
+            }),
             is_owner: false,
         };
 
@@ -1041,17 +1031,16 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
-                    name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Data {
-                        name: "Farmer data".to_owned(),
-                        type_name: "User".to_owned(),
-                        content: json!({"name": "Andres"}),
-                    }]),
-                    inputs: None,
-                    other_outputs: None,
-                    scope: Some(vec![Scopes::Temporal(5)]),
-                },
-            ),
+                name: "grape treading".to_owned(),
+                main_outputs: Some(vec![Data {
+                    name: "Farmer data".to_owned(),
+                    type_name: "User".to_owned(),
+                    content: json!({"name": "Andres"}),
+                }]),
+                inputs: None,
+                other_outputs: None,
+                scope: Some(vec![Scopes::Temporal(5)]),
+            }),
             is_owner: false,
         };
 
@@ -1059,12 +1048,11 @@ mod tests {
 
         contract_logic(&context, &mut result);
 
-        
         assert!(result.error.is_empty());
         let data = result.final_state.unit_process[0].main_outputs[0].clone();
-            assert_eq!(data.name, "Farmer data");
-            assert_eq!(data.type_name, "User");
-            assert_eq!(data.content, json!({"name": "Andres"}));
+        assert_eq!(data.name, "Farmer data");
+        assert_eq!(data.type_name, "User");
+        assert_eq!(data.content, json!({"name": "Andres"}));
     }
 
     #[test]
@@ -1091,17 +1079,16 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
-                    name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Data {
-                        name: "Farmer data".to_owned(),
-                        type_name: "f64".to_owned(),
-                        content: json!(15.5),
-                    }]),
-                    inputs: None,
-                    other_outputs: None,
-                    scope: Some(vec![Scopes::Temporal(5)]),
-                },
-            ),
+                name: "grape treading".to_owned(),
+                main_outputs: Some(vec![Data {
+                    name: "Farmer data".to_owned(),
+                    type_name: "f64".to_owned(),
+                    content: json!(15.5),
+                }]),
+                inputs: None,
+                other_outputs: None,
+                scope: Some(vec![Scopes::Temporal(5)]),
+            }),
             is_owner: false,
         };
 
@@ -1109,13 +1096,12 @@ mod tests {
 
         contract_logic(&context, &mut result);
 
-        
         assert!(result.error.is_empty());
 
         let data = result.final_state.unit_process[0].main_outputs[0].clone();
-            assert_eq!(data.name, "Farmer data");
-            assert_eq!(data.type_name, "f64");
-            assert_eq!(data.content, json!(15.5));
+        assert_eq!(data.name, "Farmer data");
+        assert_eq!(data.type_name, "f64");
+        assert_eq!(data.content, json!(15.5));
     }
 
     #[test]
@@ -1149,17 +1135,16 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
-                    name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Data {
-                        name: "Farmer data".to_owned(),
-                        type_name: "User".to_owned(),
-                        content: json!({"name": "Andres", "value": 5.1}),
-                    }]),
-                    inputs: None,
-                    other_outputs: None,
-                    scope: Some(vec![Scopes::Temporal(5)]),
-                },
-            ),
+                name: "grape treading".to_owned(),
+                main_outputs: Some(vec![Data {
+                    name: "Farmer data".to_owned(),
+                    type_name: "User".to_owned(),
+                    content: json!({"name": "Andres", "value": 5.1}),
+                }]),
+                inputs: None,
+                other_outputs: None,
+                scope: Some(vec![Scopes::Temporal(5)]),
+            }),
             is_owner: false,
         };
 
@@ -1170,9 +1155,9 @@ mod tests {
         assert!(result.error.is_empty());
 
         let data = result.final_state.unit_process[0].main_outputs[0].clone();
-            assert_eq!(data.name, "Farmer data");
-            assert_eq!(data.type_name, "User");
-            assert_eq!(data.content, json!({"name": "Andres", "value": 5.1}));
+        assert_eq!(data.name, "Farmer data");
+        assert_eq!(data.type_name, "User");
+        assert_eq!(data.content, json!({"name": "Andres", "value": 5.1}));
     }
 
     #[test]
@@ -1209,17 +1194,16 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
-                    name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Data {
-                        name: "Farmer data".to_owned(),
-                        type_name: "User".to_owned(),
-                        content: json!({"name": "Andres", "values": [12, 33, 551]}),
-                    }]),
-                    inputs: None,
-                    other_outputs: None,
-                    scope: Some(vec![Scopes::Temporal(5)]),
-                },
-            ),
+                name: "grape treading".to_owned(),
+                main_outputs: Some(vec![Data {
+                    name: "Farmer data".to_owned(),
+                    type_name: "User".to_owned(),
+                    content: json!({"name": "Andres", "values": [12, 33, 551]}),
+                }]),
+                inputs: None,
+                other_outputs: None,
+                scope: Some(vec![Scopes::Temporal(5)]),
+            }),
             is_owner: false,
         };
 
@@ -1229,13 +1213,12 @@ mod tests {
 
         assert!(result.error.is_empty());
         let data = result.final_state.unit_process[0].main_outputs[0].clone();
-            assert_eq!(data.name, "Farmer data");
-            assert_eq!(data.type_name, "User");
-            assert_eq!(
-                data.content,
-                json!({"name": "Andres", "values": [12, 33, 551]})
-            );
-        
+        assert_eq!(data.name, "Farmer data");
+        assert_eq!(data.type_name, "User");
+        assert_eq!(
+            data.content,
+            json!({"name": "Andres", "values": [12, 33, 551]})
+        );
     }
 
     #[test]
@@ -1275,17 +1258,16 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
-                    name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Data {
-                        name: "Farmer data".to_owned(),
-                        type_name: "User".to_owned(),
-                        content: json!({"name": "Andres", "values": {"age": 21}}),
-                    }]),
-                    inputs: None,
-                    other_outputs: None,
-                    scope: Some(vec![Scopes::Temporal(5)]),
-                },
-            ),
+                name: "grape treading".to_owned(),
+                main_outputs: Some(vec![Data {
+                    name: "Farmer data".to_owned(),
+                    type_name: "User".to_owned(),
+                    content: json!({"name": "Andres", "values": {"age": 21}}),
+                }]),
+                inputs: None,
+                other_outputs: None,
+                scope: Some(vec![Scopes::Temporal(5)]),
+            }),
             is_owner: false,
         };
 
@@ -1295,13 +1277,12 @@ mod tests {
 
         assert!(result.error.is_empty());
         let data = result.final_state.unit_process[0].main_outputs[0].clone();
-            assert_eq!(data.name, "Farmer data");
-            assert_eq!(data.type_name, "User");
-            assert_eq!(
-                data.content,
-                json!({"name": "Andres", "values": {"age": 21}})
-            );
-        
+        assert_eq!(data.name, "Farmer data");
+        assert_eq!(data.type_name, "User");
+        assert_eq!(
+            data.content,
+            json!({"name": "Andres", "values": {"age": 21}})
+        );
     }
 
     #[test]
@@ -1342,9 +1323,8 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::ChangeTypes(ChangeTypes::Add {
-                    types: vec![("Another User".to_owned(), custom_type)],
-                },
-            ),
+                types: vec![("Another User".to_owned(), custom_type)],
+            }),
             is_owner: false,
         };
 
@@ -1403,12 +1383,11 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::ChangeTypes(ChangeTypes::Add {
-                    types: vec![
-                        ("Another User".to_owned(), custom_type),
-                        ("Fake User".to_owned(), custom_type_2),
-                    ],
-                },
-            ),
+                types: vec![
+                    ("Another User".to_owned(), custom_type),
+                    ("Fake User".to_owned(), custom_type_2),
+                ],
+            }),
             is_owner: false,
         };
 
@@ -1457,9 +1436,8 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::ChangeTypes(ChangeTypes::Add {
-                    types: vec![("Another User".to_owned(), custom_type)],
-                },
-            ),
+                types: vec![("Another User".to_owned(), custom_type)],
+            }),
             is_owner: false,
         };
 
@@ -1473,7 +1451,6 @@ mod tests {
 
     #[test]
     fn register_types_value() {
-        // Registramos
         let mut custom_type_user = Fields(HashMap::new());
         custom_type_user
             .0
@@ -1517,17 +1494,16 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
-                    name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Data {
-                        name: "Farmer data".to_owned(),
-                        type_name: "Another User".to_owned(),
-                        content: json!({"user": { "name": "Alberto", "value": 5.5}, "value": 0.6}),
-                    }]),
-                    inputs: None,
-                    other_outputs: None,
-                    scope: Some(vec![Scopes::Temporal(5)]),
-                },
-            ),
+                name: "grape treading".to_owned(),
+                main_outputs: Some(vec![Data {
+                    name: "Farmer data".to_owned(),
+                    type_name: "Another User".to_owned(),
+                    content: json!({"user": { "name": "Alberto", "value": 5.5}, "value": 0.6}),
+                }]),
+                inputs: None,
+                other_outputs: None,
+                scope: Some(vec![Scopes::Temporal(5)]),
+            }),
             is_owner: false,
         };
 
@@ -1544,7 +1520,6 @@ mod tests {
             data.content,
             json!({"user": { "name": "Alberto", "value": 5.5}, "value": 0.6})
         );
-
     }
 
     #[test]
@@ -1559,9 +1534,8 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::ChangeProductionSystem(ChangeProductionSystem::NewName {
-                    name: "wine process 2".to_owned(),
-                },
-            ),
+                name: "wine process 2".to_owned(),
+            }),
             is_owner: false,
         };
 
@@ -1585,10 +1559,9 @@ mod tests {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::ChangeProductionSystem(ChangeProductionSystem::Init {
-                    name: "wine process".to_owned(),
-                    unit_process: vec![],
-                },
-            ),
+                name: "wine process".to_owned(),
+                unit_process: vec![],
+            }),
             is_owner: false,
         };
 
@@ -1600,47 +1573,73 @@ mod tests {
         assert_eq!(result.final_state.unit_process.len(), 0);
         assert!(result.success);
     }
-/*
-// Define the elements of the production system.
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct Element {
-    // Caudal de aceite
-        pub name: String,
-    // Waterflow
-        pub element_type: String,
-    // Agua
-        pub category: String,
-    // Caudal volumetrico
-        pub element_name: String,
-    // m^3/h
-        pub unit: String,
-    // Tipo de evento
-        pub manual_event: bool,
-    // Son x botellas al día, es un valor fijo
-    // Una medida del caudal tomada cada x días
-    pub absolute: bool,
-    // El que se mida
-    pub measure: Vec<(f64, Vec<Scopes>)>,
-}
-*/
-    
+    /*
+
+    #[derive(Serialize, Deserialize, Clone, Debug)]
+    struct Element {
+
+            pub name: String,
+
+            pub element_type: String,
+
+            pub category: String,
+
+            pub element_name: String,
+
+            pub unit: String,
+
+            pub manual_event: bool,
+
+
+        pub absolute: bool,
+
+        pub measure: Vec<(f64, Vec<Scopes>)>,
+    }
+    */
+
     #[test]
     fn test_change_operation_new() {
         let mut custom_type_element = Fields(HashMap::new());
-        custom_type_element.0.insert("element_type".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("category".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("element_name".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("unit".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("manual_event".to_owned(), DynamicType::bool);
-        custom_type_element.0.insert("absolute".to_owned(), DynamicType::bool);
-        custom_type_element.0.insert("measure".to_owned(), DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))));
+        custom_type_element
+            .0
+            .insert("element_type".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("category".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("element_name".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("unit".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("manual_event".to_owned(), DynamicType::bool);
+        custom_type_element
+            .0
+            .insert("absolute".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert(
+            "measure".to_owned(),
+            DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))),
+        );
         let mut custom_type_scopes = Fields(HashMap::new());
-        custom_type_scopes.0.insert("Temporal".to_owned(), DynamicType::u64);
-        custom_type_scopes.0.insert("TimeZone".to_owned(), DynamicType::String);
-        custom_type_scopes.0.insert("Tag".to_owned(), DynamicType::String);
+        custom_type_scopes
+            .0
+            .insert("Temporal".to_owned(), DynamicType::u64);
+        custom_type_scopes
+            .0
+            .insert("TimeZone".to_owned(), DynamicType::String);
+        custom_type_scopes
+            .0
+            .insert("Tag".to_owned(), DynamicType::String);
         let mut custom_type_measure = Fields(HashMap::new());
-        custom_type_measure.0.insert("value".to_owned(), DynamicType::f64);
-        custom_type_measure.0.insert("scopes".to_owned(), DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))));
+        custom_type_measure
+            .0
+            .insert("value".to_owned(), DynamicType::f64);
+        custom_type_measure.0.insert(
+            "scopes".to_owned(),
+            DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))),
+        );
 
         let mut types = HashMap::new();
         types.insert("Element".to_owned(), custom_type_element);
@@ -1667,46 +1666,43 @@ struct Element {
                     "manual_event": false,
                     "absolute": false,
                     "measure": []
-                })
+                }),
             }],
-            inputs: vec![
-                Data {
-                    name: "PH del agua".to_owned(),
-                    type_name: "Element".to_owned(),
-                    content: json!({
-                        "element_name": "PH".to_owned(),
-                        "element_type": "WaterFlow".to_owned(),
-                        "category": "Water".to_owned(),
-                        "unit": "pH".to_owned(),
-                        "absolute": false,
-                        "manual_event": false,
-                        "measure": [],
-                    })
-                }],
-            other_outputs: vec![
-                Data {
-                    name: "Caudal volumetrico del aceite2".to_owned(),
-                    type_name: "Element".to_owned(),
-                    content: json!({
-                        "absolute": false,
-                        "element_name": "Caudal volumetrico".to_owned(),
-                        "element_type": "WaterFlow".to_owned(),
-                        "category": "Caudal".to_owned(),
-                        "unit": "m^3/h".to_owned(),
-                        "manual_event": false,
-                        "measure": [],
-                    })
-                }],
+            inputs: vec![Data {
+                name: "PH del agua".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "PH".to_owned(),
+                    "element_type": "WaterFlow".to_owned(),
+                    "category": "Water".to_owned(),
+                    "unit": "pH".to_owned(),
+                    "absolute": false,
+                    "manual_event": false,
+                    "measure": [],
+                }),
+            }],
+            other_outputs: vec![Data {
+                name: "Caudal volumetrico del aceite2".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "absolute": false,
+                    "element_name": "Caudal volumetrico".to_owned(),
+                    "element_type": "WaterFlow".to_owned(),
+                    "category": "Caudal".to_owned(),
+                    "unit": "m^3/h".to_owned(),
+                    "manual_event": false,
+                    "measure": [],
+                }),
+            }],
         };
 
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::ChangeProductionSystem(ChangeProductionSystem::Modify {
-                    delete: vec![],
-                    modification: vec![],
-                    add: vec![unit_process_1],
-                },
-            ),
+                delete: vec![],
+                modification: vec![],
+                add: vec![unit_process_1],
+            }),
             is_owner: false,
         };
 
@@ -1725,40 +1721,48 @@ struct Element {
 
         let element = result.final_state.unit_process[0].inputs[0].clone();
         assert_eq!(element.name, "PH del agua");
-        assert_eq!(element.content, json!({
-            "element_name": "PH".to_owned(),
-            "element_type": "WaterFlow".to_owned(),
-            "category": "Water".to_owned(),
-            "unit": "pH".to_owned(),
-            "absolute": false,
-            "manual_event": false,
-            "measure": [],
-        }));
-        
+        assert_eq!(
+            element.content,
+            json!({
+                "element_name": "PH".to_owned(),
+                "element_type": "WaterFlow".to_owned(),
+                "category": "Water".to_owned(),
+                "unit": "pH".to_owned(),
+                "absolute": false,
+                "manual_event": false,
+                "measure": [],
+            })
+        );
 
-        let element= result.final_state.unit_process[0].main_outputs[0].clone();
+        let element = result.final_state.unit_process[0].main_outputs[0].clone();
         assert_eq!(element.name, "Caudal volumetrico del aceite");
-        assert_eq!(element.content, json!({
-            "element_name": "Caudal volumetrico".to_owned(),
-            "element_type": "WaterFlow".to_owned(),
-            "category": "Caudal".to_owned(),
-            "manual_event": false,
-            "unit": "m^3/h".to_owned(),
-            "absolute": false,
-            "measure": []
-        }));
+        assert_eq!(
+            element.content,
+            json!({
+                "element_name": "Caudal volumetrico".to_owned(),
+                "element_type": "WaterFlow".to_owned(),
+                "category": "Caudal".to_owned(),
+                "manual_event": false,
+                "unit": "m^3/h".to_owned(),
+                "absolute": false,
+                "measure": []
+            })
+        );
 
         let element = result.final_state.unit_process[0].other_outputs[0].clone();
         assert_eq!(element.name, "Caudal volumetrico del aceite2");
-        assert_eq!(element.content, json!({
-            "absolute": false,
-            "element_name": "Caudal volumetrico".to_owned(),
-            "element_type": "WaterFlow".to_owned(),
-            "category": "Caudal".to_owned(),
-            "unit": "m^3/h".to_owned(),
-            "manual_event": false,
-            "measure": [],
-        }));
+        assert_eq!(
+            element.content,
+            json!({
+                "absolute": false,
+                "element_name": "Caudal volumetrico".to_owned(),
+                "element_type": "WaterFlow".to_owned(),
+                "category": "Caudal".to_owned(),
+                "unit": "m^3/h".to_owned(),
+                "manual_event": false,
+                "measure": [],
+            })
+        );
 
         if let Scopes::Temporal(temporal) = result.final_state.unit_process[0].scope[0] {
             assert_eq!(temporal, 25);
@@ -1766,28 +1770,52 @@ struct Element {
             panic!("Invalid Scope")
         }
 
-        // fixed and manual_event
         assert!(result.success);
     }
 
-    
     #[test]
     fn test_change_operation_add() {
         let mut custom_type_element = Fields(HashMap::new());
-        custom_type_element.0.insert("element_type".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("category".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("element_name".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("unit".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("manual_event".to_owned(), DynamicType::bool);
-        custom_type_element.0.insert("absolute".to_owned(), DynamicType::bool);
-        custom_type_element.0.insert("measure".to_owned(), DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))));
+        custom_type_element
+            .0
+            .insert("element_type".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("category".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("element_name".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("unit".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("manual_event".to_owned(), DynamicType::bool);
+        custom_type_element
+            .0
+            .insert("absolute".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert(
+            "measure".to_owned(),
+            DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))),
+        );
         let mut custom_type_scopes = Fields(HashMap::new());
-        custom_type_scopes.0.insert("Temporal".to_owned(), DynamicType::u64);
-        custom_type_scopes.0.insert("TimeZone".to_owned(), DynamicType::String);
-        custom_type_scopes.0.insert("Tag".to_owned(), DynamicType::String);
+        custom_type_scopes
+            .0
+            .insert("Temporal".to_owned(), DynamicType::u64);
+        custom_type_scopes
+            .0
+            .insert("TimeZone".to_owned(), DynamicType::String);
+        custom_type_scopes
+            .0
+            .insert("Tag".to_owned(), DynamicType::String);
         let mut custom_type_measure = Fields(HashMap::new());
-        custom_type_measure.0.insert("value".to_owned(), DynamicType::f64);
-        custom_type_measure.0.insert("scopes".to_owned(), DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))));
+        custom_type_measure
+            .0
+            .insert("value".to_owned(), DynamicType::f64);
+        custom_type_measure.0.insert(
+            "scopes".to_owned(),
+            DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))),
+        );
 
         let mut types = HashMap::new();
         types.insert("Element".to_owned(), custom_type_element);
@@ -1806,7 +1834,7 @@ struct Element {
                     "manual_event": false,
                     "absolute": false,
                     "measure": []
-                })
+                }),
             }],
             inputs: vec![Data {
                 name: "PH del agua".to_owned(),
@@ -1819,7 +1847,7 @@ struct Element {
                     "absolute": false,
                     "manual_event": false,
                     "measure": [],
-                })
+                }),
             }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(25)],
@@ -1834,80 +1862,76 @@ struct Element {
 
         let unit_process_2 = UnitProcess {
             name: "bottling of wine".to_owned(),
-            main_outputs: vec![
-                Data {
-                    name: "Caudal volumetrico2 del aceite".to_owned(),
-                    type_name: "Element".to_owned(),
-                    content: json!({
-                        "element_name": "Caudal volumetrico2".to_owned(),
-                        "element_type": "WaterFlow2".to_owned(),
-                        "category": "Caudal2".to_owned(),
-                        "unit": "m^3/h2".to_owned(),
-                        "measure": [],
-                        "absolute": false,
-                        "manual_event": false,
-                    })
-                }],
-            inputs: vec![
-                Data {
-                    name: "PH2 del agua".to_owned(),
-                    type_name: "Element".to_owned(),
-                    content: json!({
-                        "element_type": "WaterFlow2".to_owned(),
-                        "category": "Water2".to_owned(),
-                        "element_name": "PH2".to_owned(),
-                        "unit": "pH2".to_owned(),
-                        "measure": [],
-                        "manual_event": false,
-                        "absolute": false,
-                    })
-                }],
+            main_outputs: vec![Data {
+                name: "Caudal volumetrico2 del aceite".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "Caudal volumetrico2".to_owned(),
+                    "element_type": "WaterFlow2".to_owned(),
+                    "category": "Caudal2".to_owned(),
+                    "unit": "m^3/h2".to_owned(),
+                    "measure": [],
+                    "absolute": false,
+                    "manual_event": false,
+                }),
+            }],
+            inputs: vec![Data {
+                name: "PH2 del agua".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_type": "WaterFlow2".to_owned(),
+                    "category": "Water2".to_owned(),
+                    "element_name": "PH2".to_owned(),
+                    "unit": "pH2".to_owned(),
+                    "measure": [],
+                    "manual_event": false,
+                    "absolute": false,
+                }),
+            }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(33)],
         };
         let unit_process_3 = UnitProcess {
             name: "bottling of winee".to_owned(),
-            main_outputs: vec![
-                Data {
-                    name: "Caudal volumetrico3 del aceite".to_owned(),
-                    type_name: "Element".to_owned(),
-                    content: json!({
-                        "element_name": "Caudal volumetrico2".to_owned(),
-                        "element_type": "WaterFlow2".to_owned(),
-                        "category": "Caudal3".to_owned(),
-                        "unit": "m^3/h2".to_owned(),
-                        "measure": [],
-                        "absolute": false,
-                        "manual_event": false,
-                    })
-                }],
-            inputs: vec![
-                Data {
-                    name: "PH3 del agua".to_owned(),
-                    type_name: "Element".to_owned(),
-                    content: json!({
-                        "element_type": "WaterFlow2".to_owned(),
-                        "category": "Water2".to_owned(),
-                        "element_name": "PH3".to_owned(),
-                        "unit": "pH2".to_owned(),
-                        "measure": [{
-                            "value": 0.5,
-                            "scopes": [
-                                {
-                                    "Temporal": 5555
-                                },
-                                {
-                                    "Tag": "IA"
-                                },
-                                {
-                                    "TimeZone": "UTC-0"
-                                },
-                            ]
-                        }],
-                        "manual_event": false,
-                        "absolute": false,
-                    })
-                }],
+            main_outputs: vec![Data {
+                name: "Caudal volumetrico3 del aceite".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "Caudal volumetrico2".to_owned(),
+                    "element_type": "WaterFlow2".to_owned(),
+                    "category": "Caudal3".to_owned(),
+                    "unit": "m^3/h2".to_owned(),
+                    "measure": [],
+                    "absolute": false,
+                    "manual_event": false,
+                }),
+            }],
+            inputs: vec![Data {
+                name: "PH3 del agua".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_type": "WaterFlow2".to_owned(),
+                    "category": "Water2".to_owned(),
+                    "element_name": "PH3".to_owned(),
+                    "unit": "pH2".to_owned(),
+                    "measure": [{
+                        "value": 0.5,
+                        "scopes": [
+                            {
+                                "Temporal": 5555
+                            },
+                            {
+                                "Tag": "IA"
+                            },
+                            {
+                                "TimeZone": "UTC-0"
+                            },
+                        ]
+                    }],
+                    "manual_event": false,
+                    "absolute": false,
+                }),
+            }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(33)],
         };
@@ -1915,11 +1939,10 @@ struct Element {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::ChangeProductionSystem(ChangeProductionSystem::Modify {
-                    delete: vec![],
-                    modification: vec![],
-                    add: vec![unit_process_2, unit_process_3],
-                },
-            ),
+                delete: vec![],
+                modification: vec![],
+                add: vec![unit_process_2, unit_process_3],
+            }),
             is_owner: false,
         };
 
@@ -1935,88 +1958,106 @@ struct Element {
 
         let element = result.final_state.unit_process[0].inputs[0].clone();
         assert_eq!(element.name, "PH del agua");
-        assert_eq!(element.content, json!({
-            "element_name": "PH".to_owned(),
-            "element_type": "WaterFlow".to_owned(),
-            "category": "Water".to_owned(),
-            "unit": "pH".to_owned(),
-            "absolute": false,
-            "manual_event": false,
-            "measure": [],
-        }));
+        assert_eq!(
+            element.content,
+            json!({
+                "element_name": "PH".to_owned(),
+                "element_type": "WaterFlow".to_owned(),
+                "category": "Water".to_owned(),
+                "unit": "pH".to_owned(),
+                "absolute": false,
+                "manual_event": false,
+                "measure": [],
+            })
+        );
 
         let element = result.final_state.unit_process[1].inputs[0].clone();
         assert_eq!(element.name, "PH2 del agua");
-        assert_eq!(element.content, json!({
-            "element_type": "WaterFlow2".to_owned(),
-            "category": "Water2".to_owned(),
-            "element_name": "PH2".to_owned(),
-            "unit": "pH2".to_owned(),
-            "measure": [],
-            "manual_event": false,
-            "absolute": false,
-        }));
+        assert_eq!(
+            element.content,
+            json!({
+                "element_type": "WaterFlow2".to_owned(),
+                "category": "Water2".to_owned(),
+                "element_name": "PH2".to_owned(),
+                "unit": "pH2".to_owned(),
+                "measure": [],
+                "manual_event": false,
+                "absolute": false,
+            })
+        );
 
         let element = result.final_state.unit_process[2].inputs[0].clone();
         assert_eq!(element.name, "PH3 del agua");
-        assert_eq!(element.content, json!({
-            "element_type": "WaterFlow2".to_owned(),
-            "category": "Water2".to_owned(),
-            "element_name": "PH3".to_owned(),
-            "unit": "pH2".to_owned(),
-            "measure": [{
-                "value": 0.5,
-                "scopes": [
-                    {
-                        "Temporal": 5555
-                    },
-                    {
-                        "Tag": "IA"
-                    },
-                    {
-                        "TimeZone": "UTC-0"
-                    },
-                ]
-            }],
-            "manual_event": false,
-            "absolute": false,
-        }));
+        assert_eq!(
+            element.content,
+            json!({
+                "element_type": "WaterFlow2".to_owned(),
+                "category": "Water2".to_owned(),
+                "element_name": "PH3".to_owned(),
+                "unit": "pH2".to_owned(),
+                "measure": [{
+                    "value": 0.5,
+                    "scopes": [
+                        {
+                            "Temporal": 5555
+                        },
+                        {
+                            "Tag": "IA"
+                        },
+                        {
+                            "TimeZone": "UTC-0"
+                        },
+                    ]
+                }],
+                "manual_event": false,
+                "absolute": false,
+            })
+        );
 
         let element = result.final_state.unit_process[0].main_outputs[0].clone();
         assert_eq!(element.name, "Caudal volumetrico del aceite");
-        assert_eq!(element.content, json!({
-            "element_name": "Caudal volumetrico".to_owned(),
-            "element_type": "WaterFlow".to_owned(),
-            "category": "Caudal".to_owned(),
-            "unit": "m^3/h".to_owned(),
-            "manual_event": false,
-            "absolute": false,
-            "measure": []
-        }));
+        assert_eq!(
+            element.content,
+            json!({
+                "element_name": "Caudal volumetrico".to_owned(),
+                "element_type": "WaterFlow".to_owned(),
+                "category": "Caudal".to_owned(),
+                "unit": "m^3/h".to_owned(),
+                "manual_event": false,
+                "absolute": false,
+                "measure": []
+            })
+        );
 
         let element = result.final_state.unit_process[1].main_outputs[0].clone();
         assert_eq!(element.name, "Caudal volumetrico2 del aceite");
-        assert_eq!(element.content, json!({
-            "element_name": "Caudal volumetrico2".to_owned(),
-            "element_type": "WaterFlow2".to_owned(),
-            "category": "Caudal2".to_owned(),
-            "unit": "m^3/h2".to_owned(),
-            "measure": [],
-            "absolute": false,
-            "manual_event": false,
-        }));
+        assert_eq!(
+            element.content,
+            json!({
+                "element_name": "Caudal volumetrico2".to_owned(),
+                "element_type": "WaterFlow2".to_owned(),
+                "category": "Caudal2".to_owned(),
+                "unit": "m^3/h2".to_owned(),
+                "measure": [],
+                "absolute": false,
+                "manual_event": false,
+            })
+        );
 
         let element = result.final_state.unit_process[2].main_outputs[0].clone();
         assert_eq!(element.name, "Caudal volumetrico3 del aceite");
-        assert_eq!(element.content, json!({
-            "element_name": "Caudal volumetrico2".to_owned(),
-            "element_type": "WaterFlow2".to_owned(),
-            "category": "Caudal3".to_owned(),
-            "unit": "m^3/h2".to_owned(),
-            "measure": [],
-            "absolute": false,
-            "manual_event": false,
-        }));
+        assert_eq!(
+            element.content,
+            json!({
+                "element_name": "Caudal volumetrico2".to_owned(),
+                "element_type": "WaterFlow2".to_owned(),
+                "category": "Caudal3".to_owned(),
+                "unit": "m^3/h2".to_owned(),
+                "measure": [],
+                "absolute": false,
+                "manual_event": false,
+            })
+        );
 
         if let Scopes::Temporal(temporal) = result.final_state.unit_process[0].scope[0] {
             assert_eq!(temporal, 25);
@@ -2038,24 +2079,49 @@ struct Element {
         assert!(result.success);
     }
 
-    
     #[test]
     fn test_change_operation_delete() {
         let mut custom_type_element = Fields(HashMap::new());
-        custom_type_element.0.insert("element_type".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("category".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("element_name".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("unit".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("manual_event".to_owned(), DynamicType::bool);
-        custom_type_element.0.insert("absolute".to_owned(), DynamicType::bool);
-        custom_type_element.0.insert("measure".to_owned(), DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))));
+        custom_type_element
+            .0
+            .insert("element_type".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("category".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("element_name".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("unit".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("manual_event".to_owned(), DynamicType::bool);
+        custom_type_element
+            .0
+            .insert("absolute".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert(
+            "measure".to_owned(),
+            DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))),
+        );
         let mut custom_type_scopes = Fields(HashMap::new());
-        custom_type_scopes.0.insert("Temporal".to_owned(), DynamicType::u64);
-        custom_type_scopes.0.insert("TimeZone".to_owned(), DynamicType::String);
-        custom_type_scopes.0.insert("Tag".to_owned(), DynamicType::String);
+        custom_type_scopes
+            .0
+            .insert("Temporal".to_owned(), DynamicType::u64);
+        custom_type_scopes
+            .0
+            .insert("TimeZone".to_owned(), DynamicType::String);
+        custom_type_scopes
+            .0
+            .insert("Tag".to_owned(), DynamicType::String);
         let mut custom_type_measure = Fields(HashMap::new());
-        custom_type_measure.0.insert("value".to_owned(), DynamicType::f64);
-        custom_type_measure.0.insert("scopes".to_owned(), DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))));
+        custom_type_measure
+            .0
+            .insert("value".to_owned(), DynamicType::f64);
+        custom_type_measure.0.insert(
+            "scopes".to_owned(),
+            DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))),
+        );
 
         let mut types = HashMap::new();
         types.insert("Element".to_owned(), custom_type_element);
@@ -2074,7 +2140,7 @@ struct Element {
                     "manual_event": false,
                     "absolute": false,
                     "measure": []
-                })
+                }),
             }],
             inputs: vec![Data {
                 name: "PH del agua".to_owned(),
@@ -2087,7 +2153,7 @@ struct Element {
                     "absolute": false,
                     "manual_event": false,
                     "measure": [],
-                })
+                }),
             }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(25)],
@@ -2095,34 +2161,32 @@ struct Element {
 
         let unit_process_2 = UnitProcess {
             name: "bottling of wine".to_owned(),
-            main_outputs: vec![
-                Data {
-                    name: "Caudal volumetrico2 del aceite".to_owned(),
-                    type_name: "Element".to_owned(),
-                    content: json!({
-                        "element_name": "Caudal volumetrico2".to_owned(),
-                        "element_type": "WaterFlow2".to_owned(),
-                        "category": "Caudal2".to_owned(),
-                        "unit": "m^3/h2".to_owned(),
-                        "measure": [],
-                        "absolute": false,
-                        "manual_event": false,
-                    })
-                }],
-            inputs: vec![
-                Data {
-                    name: "PH2 del agua".to_owned(),
-                    type_name: "Element".to_owned(),
-                    content: json!({
-                        "element_type": "WaterFlow2".to_owned(),
-                        "category": "Water2".to_owned(),
-                        "element_name": "PH2".to_owned(),
-                        "unit": "pH2".to_owned(),
-                        "measure": [],
-                        "manual_event": false,
-                        "absolute": false,
-                    })
-                }],
+            main_outputs: vec![Data {
+                name: "Caudal volumetrico2 del aceite".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "Caudal volumetrico2".to_owned(),
+                    "element_type": "WaterFlow2".to_owned(),
+                    "category": "Caudal2".to_owned(),
+                    "unit": "m^3/h2".to_owned(),
+                    "measure": [],
+                    "absolute": false,
+                    "manual_event": false,
+                }),
+            }],
+            inputs: vec![Data {
+                name: "PH2 del agua".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_type": "WaterFlow2".to_owned(),
+                    "category": "Water2".to_owned(),
+                    "element_name": "PH2".to_owned(),
+                    "unit": "pH2".to_owned(),
+                    "measure": [],
+                    "manual_event": false,
+                    "absolute": false,
+                }),
+            }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(33)],
         };
@@ -2137,11 +2201,10 @@ struct Element {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::ChangeProductionSystem(ChangeProductionSystem::Modify {
-                    delete: vec!["grape treading".to_owned(), "bottling of wine".to_owned()],
-                    modification: vec![],
-                    add: vec![],
-                },
-            ),
+                delete: vec!["grape treading".to_owned(), "bottling of wine".to_owned()],
+                modification: vec![],
+                add: vec![],
+            }),
             is_owner: false,
         };
 
@@ -2156,20 +2219,46 @@ struct Element {
     #[test]
     fn test_change_operation_modify() {
         let mut custom_type_element = Fields(HashMap::new());
-        custom_type_element.0.insert("element_type".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("category".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("element_name".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("unit".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("manual_event".to_owned(), DynamicType::bool);
-        custom_type_element.0.insert("absolute".to_owned(), DynamicType::bool);
-        custom_type_element.0.insert("measure".to_owned(), DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))));
+        custom_type_element
+            .0
+            .insert("element_type".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("category".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("element_name".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("unit".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("manual_event".to_owned(), DynamicType::bool);
+        custom_type_element
+            .0
+            .insert("absolute".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert(
+            "measure".to_owned(),
+            DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))),
+        );
         let mut custom_type_scopes = Fields(HashMap::new());
-        custom_type_scopes.0.insert("Temporal".to_owned(), DynamicType::u64);
-        custom_type_scopes.0.insert("TimeZone".to_owned(), DynamicType::String);
-        custom_type_scopes.0.insert("Tag".to_owned(), DynamicType::String);
+        custom_type_scopes
+            .0
+            .insert("Temporal".to_owned(), DynamicType::u64);
+        custom_type_scopes
+            .0
+            .insert("TimeZone".to_owned(), DynamicType::String);
+        custom_type_scopes
+            .0
+            .insert("Tag".to_owned(), DynamicType::String);
         let mut custom_type_measure = Fields(HashMap::new());
-        custom_type_measure.0.insert("value".to_owned(), DynamicType::f64);
-        custom_type_measure.0.insert("scopes".to_owned(), DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))));
+        custom_type_measure
+            .0
+            .insert("value".to_owned(), DynamicType::f64);
+        custom_type_measure.0.insert(
+            "scopes".to_owned(),
+            DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))),
+        );
 
         let mut types = HashMap::new();
         types.insert("Element".to_owned(), custom_type_element);
@@ -2188,7 +2277,7 @@ struct Element {
                     "manual_event": false,
                     "absolute": false,
                     "measure": []
-                })
+                }),
             }],
             inputs: vec![Data {
                 name: "PH del agua".to_owned(),
@@ -2201,7 +2290,7 @@ struct Element {
                     "absolute": false,
                     "manual_event": false,
                     "measure": [],
-                })
+                }),
             }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(25)],
@@ -2209,34 +2298,32 @@ struct Element {
 
         let unit_process_2 = UnitProcess {
             name: "bottling of wine".to_owned(),
-            main_outputs: vec![
-                Data {
-                    name: "Caudal volumetrico2 del aceite".to_owned(),
-                    type_name: "Element".to_owned(),
-                    content: json!({
-                        "element_name": "Caudal volumetrico2".to_owned(),
-                        "element_type": "WaterFlow2".to_owned(),
-                        "category": "Caudal2".to_owned(),
-                        "unit": "m^3/h2".to_owned(),
-                        "measure": [],
-                        "absolute": false,
-                        "manual_event": false,
-                    })
-                }],
-            inputs: vec![
-                Data {
-                    name: "PH2 del agua".to_owned(),
-                    type_name: "Element".to_owned(),
-                    content: json!({
-                        "element_type": "WaterFlow2".to_owned(),
-                        "category": "Water2".to_owned(),
-                        "element_name": "PH2".to_owned(),
-                        "unit": "pH2".to_owned(),
-                        "measure": [],
-                        "manual_event": false,
-                        "absolute": false,
-                    })
-                }],
+            main_outputs: vec![Data {
+                name: "Caudal volumetrico2 del aceite".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "Caudal volumetrico2".to_owned(),
+                    "element_type": "WaterFlow2".to_owned(),
+                    "category": "Caudal2".to_owned(),
+                    "unit": "m^3/h2".to_owned(),
+                    "measure": [],
+                    "absolute": false,
+                    "manual_event": false,
+                }),
+            }],
+            inputs: vec![Data {
+                name: "PH2 del agua".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_type": "WaterFlow2".to_owned(),
+                    "category": "Water2".to_owned(),
+                    "element_name": "PH2".to_owned(),
+                    "unit": "pH2".to_owned(),
+                    "measure": [],
+                    "manual_event": false,
+                    "absolute": false,
+                }),
+            }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(33)],
         };
@@ -2251,11 +2338,10 @@ struct Element {
         let context = sdk::Context {
             initial_state: init_state.clone(),
             event: Events::ChangeProductionSystem(ChangeProductionSystem::Modify {
-                    delete: vec![],
-                    modification: vec![("grape treading".to_owned(), unit_process_2)],
-                    add: vec![],
-                },
-            ),
+                delete: vec![],
+                modification: vec![("grape treading".to_owned(), unit_process_2)],
+                add: vec![],
+            }),
             is_owner: false,
         };
         let mut result = sdk::ContractResult::new(init_state);
@@ -2269,27 +2355,33 @@ struct Element {
 
         let element = result.final_state.unit_process[0].inputs[0].clone();
         assert_eq!(element.name, "PH2 del agua");
-        assert_eq!(element.content, json!({
-            "element_type": "WaterFlow2".to_owned(),
-            "category": "Water2".to_owned(),
-            "element_name": "PH2".to_owned(),
-            "unit": "pH2".to_owned(),
-            "measure": [],
-            "manual_event": false,
-            "absolute": false,
-        }));
+        assert_eq!(
+            element.content,
+            json!({
+                "element_type": "WaterFlow2".to_owned(),
+                "category": "Water2".to_owned(),
+                "element_name": "PH2".to_owned(),
+                "unit": "pH2".to_owned(),
+                "measure": [],
+                "manual_event": false,
+                "absolute": false,
+            })
+        );
 
         let element = result.final_state.unit_process[0].main_outputs[0].clone();
         assert_eq!(element.name, "Caudal volumetrico2 del aceite");
-        assert_eq!(element.content, json!({
-            "element_name": "Caudal volumetrico2".to_owned(),
-            "element_type": "WaterFlow2".to_owned(),
-            "category": "Caudal2".to_owned(),
-            "unit": "m^3/h2".to_owned(),
-            "measure": [],
-            "absolute": false,
-            "manual_event": false,
-        }));
+        assert_eq!(
+            element.content,
+            json!({
+                "element_name": "Caudal volumetrico2".to_owned(),
+                "element_type": "WaterFlow2".to_owned(),
+                "category": "Caudal2".to_owned(),
+                "unit": "m^3/h2".to_owned(),
+                "measure": [],
+                "absolute": false,
+                "manual_event": false,
+            })
+        );
 
         if let Scopes::Temporal(temporal) = result.final_state.unit_process[0].scope[0] {
             assert_eq!(temporal, 33);
@@ -2303,20 +2395,46 @@ struct Element {
     #[test]
     fn test_change_register_data() {
         let mut custom_type_element = Fields(HashMap::new());
-        custom_type_element.0.insert("element_type".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("category".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("element_name".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("unit".to_owned(), DynamicType::String);
-        custom_type_element.0.insert("manual_event".to_owned(), DynamicType::bool);
-        custom_type_element.0.insert("absolute".to_owned(), DynamicType::bool);
-        custom_type_element.0.insert("measure".to_owned(), DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))));
+        custom_type_element
+            .0
+            .insert("element_type".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("category".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("element_name".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("unit".to_owned(), DynamicType::String);
+        custom_type_element
+            .0
+            .insert("manual_event".to_owned(), DynamicType::bool);
+        custom_type_element
+            .0
+            .insert("absolute".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert(
+            "measure".to_owned(),
+            DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))),
+        );
         let mut custom_type_scopes = Fields(HashMap::new());
-        custom_type_scopes.0.insert("Temporal".to_owned(), DynamicType::u64);
-        custom_type_scopes.0.insert("TimeZone".to_owned(), DynamicType::String);
-        custom_type_scopes.0.insert("Tag".to_owned(), DynamicType::String);
+        custom_type_scopes
+            .0
+            .insert("Temporal".to_owned(), DynamicType::u64);
+        custom_type_scopes
+            .0
+            .insert("TimeZone".to_owned(), DynamicType::String);
+        custom_type_scopes
+            .0
+            .insert("Tag".to_owned(), DynamicType::String);
         let mut custom_type_measure = Fields(HashMap::new());
-        custom_type_measure.0.insert("value".to_owned(), DynamicType::f64);
-        custom_type_measure.0.insert("scopes".to_owned(), DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))));
+        custom_type_measure
+            .0
+            .insert("value".to_owned(), DynamicType::f64);
+        custom_type_measure.0.insert(
+            "scopes".to_owned(),
+            DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))),
+        );
 
         let mut types = HashMap::new();
         types.insert("Element".to_owned(), custom_type_element);
@@ -2335,7 +2453,7 @@ struct Element {
                     "manual_event": false,
                     "absolute": false,
                     "measure": []
-                })
+                }),
             }],
             inputs: vec![Data {
                 name: "PH del agua".to_owned(),
@@ -2348,7 +2466,7 @@ struct Element {
                     "absolute": false,
                     "manual_event": false,
                     "measure": [],
-                })
+                }),
             }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(25)],
@@ -2388,7 +2506,7 @@ struct Element {
                             },
                         ]
                     }],
-                })
+                }),
             }]),
             inputs: Some(vec![Data {
                 name: "PH del agua".to_owned(),
@@ -2417,7 +2535,7 @@ struct Element {
                             },
                         ]
                     }],
-                })
+                }),
             }]),
             other_outputs: None,
         };
@@ -2438,56 +2556,62 @@ struct Element {
 
         let element = result.final_state.unit_process[0].inputs[0].clone();
         assert_eq!(element.name, "PH del agua");
-        assert_eq!(element.content, json!({
-            "element_name": "PH".to_owned(),
-            "element_type": "WaterFlow".to_owned(),
-            "category": "Water".to_owned(),
-            "unit": "pH".to_owned(),
-            "absolute": false,
-            "manual_event": false,
-            "measure": [{
-                "value": 24.5,
-                "scopes": [
-                    {
-                        "Temporal": 515
-                    },
-                    {
-                        "Tag": "Ledger"
-                    },
-                    {
-                        "Tag": "IA"
-                    },
-                    {
-                        "TimeZone": "UTC+1"
-                    },
-                ]
-            }],
-        }));
+        assert_eq!(
+            element.content,
+            json!({
+                "element_name": "PH".to_owned(),
+                "element_type": "WaterFlow".to_owned(),
+                "category": "Water".to_owned(),
+                "unit": "pH".to_owned(),
+                "absolute": false,
+                "manual_event": false,
+                "measure": [{
+                    "value": 24.5,
+                    "scopes": [
+                        {
+                            "Temporal": 515
+                        },
+                        {
+                            "Tag": "Ledger"
+                        },
+                        {
+                            "Tag": "IA"
+                        },
+                        {
+                            "TimeZone": "UTC+1"
+                        },
+                    ]
+                }],
+            })
+        );
 
         let element = result.final_state.unit_process[0].main_outputs[0].clone();
         assert_eq!(element.name, "Caudal volumetrico del aceite");
-        assert_eq!(element.content, json!({
-            "element_name": "Caudal volumetrico".to_owned(),
-            "element_type": "WaterFlow".to_owned(),
-            "category": "Caudal".to_owned(),
-            "unit": "m^3/h".to_owned(),
-            "manual_event": false,
-            "absolute": false,
-            "measure": [{
-                "value": 0.5,
-                "scopes": [
-                    {
-                        "Temporal": 5555
-                    },
-                    {
-                        "Tag": "IA"
-                    },
-                    {
-                        "TimeZone": "UTC-0"
-                    },
-                ]
-            }],
-        }));
+        assert_eq!(
+            element.content,
+            json!({
+                "element_name": "Caudal volumetrico".to_owned(),
+                "element_type": "WaterFlow".to_owned(),
+                "category": "Caudal".to_owned(),
+                "unit": "m^3/h".to_owned(),
+                "manual_event": false,
+                "absolute": false,
+                "measure": [{
+                    "value": 0.5,
+                    "scopes": [
+                        {
+                            "Temporal": 5555
+                        },
+                        {
+                            "Tag": "IA"
+                        },
+                        {
+                            "TimeZone": "UTC-0"
+                        },
+                    ]
+                }],
+            })
+        );
 
         if let Scopes::Temporal(temporal) = result.final_state.unit_process[0].scope[0] {
             assert_eq!(temporal, 25);
