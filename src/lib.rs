@@ -285,46 +285,11 @@ impl DynamicType {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(untagged)]
-enum Puts {
-    Element(Element),
-    Data(Data),
-}
-
-impl Puts {
-    fn check_data(&self, custom_types: HashMap<String, Fields>) -> Result<(), String> {
-        match self {
-            Puts::Element(element) => element.check_data(),
-            Puts::Data(data) => data.check_data(custom_types),
-        }
-    }
-
-    fn name(&self) -> &str {
-        match self {
-            Puts::Element(element) => &element.name,
-            Puts::Data(data) => &data.name,
-        }
-    }
-
-    fn register_data(
-        &mut self,
-        put: Puts,
-        custom_types: HashMap<String, Fields>,
-    ) -> Result<(), String> {
-        match (self, put) {
-            (Puts::Element(self_element), Puts::Element(element)) => self_element.register_data(element),
-            (Puts::Data(self_data), Puts::Data(data)) => self_data.register_data(data, custom_types),
-            _ => Err("You are trying to record data of different types, one is an Element and the other is a Data".to_owned())
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
 struct UnitData {
     pub name: String,
-    pub main_outputs: Option<Vec<Puts>>,
-    pub inputs: Option<Vec<Puts>>,
-    pub other_outputs: Option<Vec<Puts>>,
+    pub main_outputs: Option<Vec<Data>>,
+    pub inputs: Option<Vec<Data>>,
+    pub other_outputs: Option<Vec<Data>>,
     pub scope: Option<Vec<Scopes>>,
 }
 
@@ -332,9 +297,9 @@ struct UnitData {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct UnitProcess {
     pub name: String,
-    pub main_outputs: Vec<Puts>,
-    pub inputs: Vec<Puts>,
-    pub other_outputs: Vec<Puts>,
+    pub main_outputs: Vec<Data>,
+    pub inputs: Vec<Data>,
+    pub other_outputs: Vec<Data>,
     pub scope: Vec<Scopes>,
 }
 
@@ -344,17 +309,17 @@ impl UnitProcess {
 
         for m_o in self.main_outputs.clone() {
             m_o.check_data(custom_types.clone())?;
-            names.push(m_o.name().to_owned());
+            names.push(m_o.name);
         }
 
         for i in self.inputs.clone() {
             i.check_data(custom_types.clone())?;
-            names.push(i.name().to_owned());
+            names.push(i.name);
         }
 
         for o_o in self.other_outputs.clone() {
             o_o.check_data(custom_types.clone())?;
-            names.push(o_o.name().to_owned());
+            names.push(o_o.name);
         }
 
         let hash_name: HashSet<String> = HashSet::from_iter(names.iter().cloned());
@@ -385,7 +350,7 @@ impl UnitProcess {
 
             for element_state in self.inputs.iter_mut() {
                 for element_unit in inputs.clone() {
-                    if element_state.name() == element_unit.name() {
+                    if element_state.name == element_unit.name {
                         element_state.register_data(element_unit, custom_types.clone())?;
                         updates += 1;
                     }
@@ -409,7 +374,7 @@ impl UnitProcess {
 
             for element_state in self.main_outputs.iter_mut() {
                 for element_unit in main_outputs.clone() {
-                    if element_state.name() == element_unit.name() {
+                    if element_state.name == element_unit.name {
                         element_state.register_data(element_unit, custom_types.clone())?;
                         updates += 1;
                     }
@@ -430,7 +395,7 @@ impl UnitProcess {
 
             for element_state in self.other_outputs.iter_mut() {
                 for element_unit in other_outputs.clone() {
-                    if element_state.name() == element_unit.name() {
+                    if element_state.name == element_unit.name {
                         element_state.register_data(element_unit, custom_types.clone())?;
                         updates += 1;
                     }
@@ -508,85 +473,6 @@ impl Data {
         };
 
         self.content = data.content;
-
-        Ok(())
-    }
-}
-
-// Define the elements of the production system.
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct Element {
-    // Caudal de aceite
-    pub name: String,
-    // Waterflow
-    pub element_type: String,
-    // Agua
-    pub category: String,
-    // Caudal volumetrico
-    pub element_name: String,
-    // m^3/h
-    pub unit: String,
-    // Tipo de evento
-    pub manual_event: bool,
-    // Son x botellas al día, es un valor fijo
-    // Una medida del caudal tomada cada x días
-    pub absolute: bool,
-    // El que se mida
-    pub measure: Vec<(f64, Vec<Scopes>)>,
-}
-
-impl Element {
-    fn check_data(&self) -> Result<(), String> {
-        if self.name.is_empty() {
-            return Err("Element name can not be empty".to_owned());
-        }
-
-        if self.element_type.is_empty() {
-            return Err("Element element type can not be empty".to_owned());
-        }
-
-        if self.category.is_empty() {
-            return Err("Element category can not be empty".to_owned());
-        }
-
-        if self.element_name.is_empty() {
-            return Err("Element element name can not be empty".to_owned());
-        }
-
-        if self.unit.is_empty() {
-            return Err("Element unit can not be empty".to_owned());
-        }
-
-        if !self.measure.is_empty() {
-            return Err("Element measure must be empty".to_owned());
-        }
-
-        Ok(())
-    }
-
-    pub fn register_data(&mut self, element: Element) -> Result<(), String> {
-        if self.name != element.name {
-            return Err("Element name is not the same".to_owned());
-        }
-
-        if self.element_type != element.element_type {
-            return Err("Element type is not the same".to_owned());
-        }
-
-        if self.category != element.category {
-            return Err("Element category is not the same".to_owned());
-        }
-
-        if self.unit != element.unit {
-            return Err("Element unit is not the same".to_owned());
-        }
-
-        if self.element_name != element.element_name {
-            return Err("Element element name is not the same".to_owned());
-        }
-
-        self.measure = element.measure;
-        self.manual_event = element.manual_event;
 
         Ok(())
     }
@@ -862,8 +748,8 @@ mod tests {
     use std::{collections::HashMap, vec};
 
     use crate::{
-        contract_logic, ChangeProductionSystem, ChangeTypes, Data, DynamicType, Element, Events,
-        Fields, ProductionSystem, Puts, Scopes, UnitData, UnitProcess,
+        contract_logic, ChangeProductionSystem, ChangeTypes, Data, DynamicType, Events,
+        Fields, ProductionSystem, Scopes, UnitData, UnitProcess,
     };
     use kore_contract_sdk as sdk;
     use serde_json::json;
@@ -888,14 +774,14 @@ mod tests {
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
             scope: vec![Scopes::Temporal(25)],
-            main_outputs: vec![Puts::Data(Data {
+            main_outputs: vec![Data {
                 name: "Farmer data".to_owned(),
                 type_name: "UserData".to_owned(),
                 content: json!({"data": {
                     "name": "Pepe",
                     "value": "Rock"
                 }}),
-            })],
+            }],
             inputs: vec![],
             other_outputs: vec![],
         };
@@ -911,13 +797,13 @@ mod tests {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Puts::Data(Data {
+                    main_outputs: Some(vec![Data {
                         name: "Farmer data".to_owned(),
                         type_name: "UserData".to_owned(),
                         content: json!({"data": {
                             "name": "Andres"
                         }}),
-                    })]),
+                    }]),
                     inputs: None,
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
@@ -934,15 +820,12 @@ mod tests {
         println!("{}", result.error);
         assert!(result.error.is_empty());
         
-        if let Puts::Data(data) = result.final_state.unit_process[0].main_outputs[0].clone() {
-            assert_eq!(data.name, "Farmer data");
-            assert_eq!(data.type_name, "UserData");
-            assert_eq!(data.content, json!({"data": {
-                "name": "Andres"
-            }}));
-        } else {
-            panic!("Invalid Put");
-        };
+        let data = result.final_state.unit_process[0].main_outputs[0].clone();
+        assert_eq!(data.name, "Farmer data");
+        assert_eq!(data.type_name, "UserData");
+        assert_eq!(data.content, json!({"data": {
+            "name": "Andres"
+        }}));
     }
 
     #[test]
@@ -960,11 +843,11 @@ mod tests {
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
             scope: vec![Scopes::Temporal(25)],
-            main_outputs: vec![Puts::Data(Data {
+            main_outputs: vec![Data {
                 name: "Farmer data".to_owned(),
                 type_name: "User".to_owned(),
                 content: json!({"name": "pepe"}),
-            })],
+            }],
             inputs: vec![],
             other_outputs: vec![],
         };
@@ -980,11 +863,11 @@ mod tests {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Puts::Data(Data {
+                    main_outputs: Some(vec![Data {
                         name: "Farmer data".to_owned(),
                         type_name: "User".to_owned(),
                         content: json!({"name": "Andres"}),
-                    })]),
+                    }]),
                     inputs: None,
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
@@ -999,13 +882,10 @@ mod tests {
 
         
         assert!(result.error.is_empty());
-        if let Puts::Data(data) = result.final_state.unit_process[0].main_outputs[0].clone() {
-            assert_eq!(data.name, "Farmer data");
-            assert_eq!(data.type_name, "User");
-            assert_eq!(data.content, json!({"name": "Andres"}));
-        } else {
-            panic!("Invalid Put");
-        };
+        let data = result.final_state.unit_process[0].main_outputs[0].clone();
+        assert_eq!(data.name, "Farmer data");
+        assert_eq!(data.type_name, "User");
+        assert_eq!(data.content, json!({"name": "Andres"}));
     }
 
     #[test]
@@ -1023,11 +903,11 @@ mod tests {
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
             scope: vec![Scopes::Temporal(25)],
-            main_outputs: vec![Puts::Data(Data {
+            main_outputs: vec![Data {
                 name: "Farmer data".to_owned(),
                 type_name: "User".to_owned(),
                 content: json!({"name": "pepe"}),
-            })],
+            }],
             inputs: vec![],
             other_outputs: vec![],
         };
@@ -1043,11 +923,11 @@ mod tests {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Puts::Data(Data {
+                    main_outputs: Some(vec![Data {
                         name: "Farmer data".to_owned(),
                         type_name: "User".to_owned(),
                         content: json!({}),
-                    })]),
+                    }]),
                     inputs: None,
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
@@ -1062,13 +942,10 @@ mod tests {
 
         
         assert!(result.error.is_empty());
-        if let Puts::Data(data) = result.final_state.unit_process[0].main_outputs[0].clone() {
+        let data = result.final_state.unit_process[0].main_outputs[0].clone();
             assert_eq!(data.name, "Farmer data");
             assert_eq!(data.type_name, "User");
             assert_eq!(data.content, json!({}));
-        } else {
-            panic!("Invalid Put");
-        };
     }
 
     #[test]
@@ -1086,11 +963,11 @@ mod tests {
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
             scope: vec![Scopes::Temporal(25)],
-            main_outputs: vec![Puts::Data(Data {
+            main_outputs: vec![Data {
                 name: "Farmer data".to_owned(),
                 type_name: "User".to_owned(),
                 content: json!({"name": "pepe"}),
-            })],
+            }],
             inputs: vec![],
             other_outputs: vec![],
         };
@@ -1106,11 +983,11 @@ mod tests {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Puts::Data(Data {
+                    main_outputs: Some(vec![Data {
                         name: "Farmer data".to_owned(),
                         type_name: "User".to_owned(),
                         content: json!({"name": "Andres", "value": "val"}),
-                    })]),
+                    }]),
                     inputs: None,
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
@@ -1124,13 +1001,10 @@ mod tests {
         contract_logic(&context, &mut result);
 
         assert!(result.error.is_empty());
-        if let Puts::Data(data) = result.final_state.unit_process[0].main_outputs[0].clone() {
-            assert_eq!(data.name, "Farmer data");
-            assert_eq!(data.type_name, "User");
-            assert_eq!(data.content, json!({"name": "Andres", "value": "val"}));
-        } else {
-            panic!("Invalid Put");
-        };
+        let data = result.final_state.unit_process[0].main_outputs[0].clone();
+        assert_eq!(data.name, "Farmer data");
+        assert_eq!(data.type_name, "User");
+        assert_eq!(data.content, json!({"name": "Andres", "value": "val"}));
     }
 
     #[test]
@@ -1148,11 +1022,11 @@ mod tests {
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
             scope: vec![Scopes::Temporal(25)],
-            main_outputs: vec![Puts::Data(Data {
+            main_outputs: vec![Data {
                 name: "Farmer data".to_owned(),
                 type_name: "User".to_owned(),
                 content: json!({"name": "pepe", "value": "lav"}),
-            })],
+            }],
             inputs: vec![],
             other_outputs: vec![],
         };
@@ -1168,11 +1042,11 @@ mod tests {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Puts::Data(Data {
+                    main_outputs: Some(vec![Data {
                         name: "Farmer data".to_owned(),
                         type_name: "User".to_owned(),
                         content: json!({"name": "Andres"}),
-                    })]),
+                    }]),
                     inputs: None,
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
@@ -1187,13 +1061,10 @@ mod tests {
 
         
         assert!(result.error.is_empty());
-        if let Puts::Data(data) = result.final_state.unit_process[0].main_outputs[0].clone() {
+        let data = result.final_state.unit_process[0].main_outputs[0].clone();
             assert_eq!(data.name, "Farmer data");
             assert_eq!(data.type_name, "User");
             assert_eq!(data.content, json!({"name": "Andres"}));
-        } else {
-            panic!("Invalid Put");
-        };
     }
 
     #[test]
@@ -1201,11 +1072,11 @@ mod tests {
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
             scope: vec![Scopes::Temporal(25)],
-            main_outputs: vec![Puts::Data(Data {
+            main_outputs: vec![Data {
                 name: "Farmer data".to_owned(),
                 type_name: "f64".to_owned(),
                 content: json!(0.0),
-            })],
+            }],
             inputs: vec![],
             other_outputs: vec![],
         };
@@ -1221,11 +1092,11 @@ mod tests {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Puts::Data(Data {
+                    main_outputs: Some(vec![Data {
                         name: "Farmer data".to_owned(),
                         type_name: "f64".to_owned(),
                         content: json!(15.5),
-                    })]),
+                    }]),
                     inputs: None,
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
@@ -1241,13 +1112,10 @@ mod tests {
         
         assert!(result.error.is_empty());
 
-        if let Puts::Data(data) = result.final_state.unit_process[0].main_outputs[0].clone() {
+        let data = result.final_state.unit_process[0].main_outputs[0].clone();
             assert_eq!(data.name, "Farmer data");
             assert_eq!(data.type_name, "f64");
             assert_eq!(data.content, json!(15.5));
-        } else {
-            panic!("Invalid Put");
-        };
     }
 
     #[test]
@@ -1262,11 +1130,11 @@ mod tests {
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
             scope: vec![Scopes::Temporal(25)],
-            main_outputs: vec![Puts::Data(Data {
+            main_outputs: vec![Data {
                 name: "Farmer data".to_owned(),
                 type_name: "User".to_owned(),
                 content: json!({"name": "pepe", "value": 0.5}),
-            })],
+            }],
             inputs: vec![],
             other_outputs: vec![],
         };
@@ -1282,11 +1150,11 @@ mod tests {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Puts::Data(Data {
+                    main_outputs: Some(vec![Data {
                         name: "Farmer data".to_owned(),
                         type_name: "User".to_owned(),
                         content: json!({"name": "Andres", "value": 5.1}),
-                    })]),
+                    }]),
                     inputs: None,
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
@@ -1301,13 +1169,10 @@ mod tests {
 
         assert!(result.error.is_empty());
 
-        if let Puts::Data(data) = result.final_state.unit_process[0].main_outputs[0].clone() {
+        let data = result.final_state.unit_process[0].main_outputs[0].clone();
             assert_eq!(data.name, "Farmer data");
             assert_eq!(data.type_name, "User");
             assert_eq!(data.content, json!({"name": "Andres", "value": 5.1}));
-        } else {
-            panic!("Invalid Put");
-        };
     }
 
     #[test]
@@ -1325,11 +1190,11 @@ mod tests {
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
             scope: vec![Scopes::Temporal(25)],
-            main_outputs: vec![Puts::Data(Data {
+            main_outputs: vec![Data {
                 name: "Farmer data".to_owned(),
                 type_name: "User".to_owned(),
                 content: json!({"name": "pepe", "values": []}),
-            })],
+            }],
             inputs: vec![],
             other_outputs: vec![],
         };
@@ -1345,11 +1210,11 @@ mod tests {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Puts::Data(Data {
+                    main_outputs: Some(vec![Data {
                         name: "Farmer data".to_owned(),
                         type_name: "User".to_owned(),
                         content: json!({"name": "Andres", "values": [12, 33, 551]}),
-                    })]),
+                    }]),
                     inputs: None,
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
@@ -1363,16 +1228,14 @@ mod tests {
         contract_logic(&context, &mut result);
 
         assert!(result.error.is_empty());
-        if let Puts::Data(data) = result.final_state.unit_process[0].main_outputs[0].clone() {
+        let data = result.final_state.unit_process[0].main_outputs[0].clone();
             assert_eq!(data.name, "Farmer data");
             assert_eq!(data.type_name, "User");
             assert_eq!(
                 data.content,
                 json!({"name": "Andres", "values": [12, 33, 551]})
             );
-        } else {
-            panic!("Invalid Put");
-        };
+        
     }
 
     #[test]
@@ -1393,11 +1256,11 @@ mod tests {
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
             scope: vec![Scopes::Temporal(25)],
-            main_outputs: vec![Puts::Data(Data {
+            main_outputs: vec![Data {
                 name: "Farmer data".to_owned(),
                 type_name: "User".to_owned(),
                 content: json!({"name": "", "values": {}}),
-            })],
+            }],
             inputs: vec![],
             other_outputs: vec![],
         };
@@ -1413,11 +1276,11 @@ mod tests {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Puts::Data(Data {
+                    main_outputs: Some(vec![Data {
                         name: "Farmer data".to_owned(),
                         type_name: "User".to_owned(),
                         content: json!({"name": "Andres", "values": {"age": 21}}),
-                    })]),
+                    }]),
                     inputs: None,
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
@@ -1431,16 +1294,14 @@ mod tests {
         contract_logic(&context, &mut result);
 
         assert!(result.error.is_empty());
-        if let Puts::Data(data) = result.final_state.unit_process[0].main_outputs[0].clone() {
+        let data = result.final_state.unit_process[0].main_outputs[0].clone();
             assert_eq!(data.name, "Farmer data");
             assert_eq!(data.type_name, "User");
             assert_eq!(
                 data.content,
                 json!({"name": "Andres", "values": {"age": 21}})
             );
-        } else {
-            panic!("Invalid Put");
-        };
+        
     }
 
     #[test]
@@ -1455,11 +1316,11 @@ mod tests {
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
             scope: vec![Scopes::Temporal(25)],
-            main_outputs: vec![Puts::Data(Data {
+            main_outputs: vec![Data {
                 name: "Farmer data".to_owned(),
                 type_name: "User".to_owned(),
                 content: json!({"name": "pepe", "value": 0.5}),
-            })],
+            }],
             inputs: vec![],
             other_outputs: vec![],
         };
@@ -1637,11 +1498,11 @@ mod tests {
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
             scope: vec![Scopes::Temporal(25)],
-            main_outputs: vec![Puts::Data(Data {
+            main_outputs: vec![Data {
                 name: "Farmer data".to_owned(),
                 type_name: "Another User".to_owned(),
                 content: json!({"user": {"name": "", "value": 0.0}, "value": 0.0}),
-            })],
+            }],
             inputs: vec![],
             other_outputs: vec![],
         };
@@ -1657,11 +1518,11 @@ mod tests {
             initial_state: init_state.clone(),
             event: Events::RegisterData(UnitData {
                     name: "grape treading".to_owned(),
-                    main_outputs: Some(vec![Puts::Data(Data {
+                    main_outputs: Some(vec![Data {
                         name: "Farmer data".to_owned(),
                         type_name: "Another User".to_owned(),
                         content: json!({"user": { "name": "Alberto", "value": 5.5}, "value": 0.6}),
-                    })]),
+                    }]),
                     inputs: None,
                     other_outputs: None,
                     scope: Some(vec![Scopes::Temporal(5)]),
@@ -1676,16 +1537,14 @@ mod tests {
 
         assert!(result.error.is_empty());
 
-        if let Puts::Data(data) = result.final_state.unit_process[0].main_outputs[0].clone() {
-            assert_eq!(data.name, "Farmer data");
-            assert_eq!(data.type_name, "Another User");
-            assert_eq!(
-                data.content,
-                json!({"user": { "name": "Alberto", "value": 5.5}, "value": 0.6})
-            );
-        } else {
-            panic!("Invalid Put");
-        };
+        let data = result.final_state.unit_process[0].main_outputs[0].clone();
+        assert_eq!(data.name, "Farmer data");
+        assert_eq!(data.type_name, "Another User");
+        assert_eq!(
+            data.content,
+            json!({"user": { "name": "Alberto", "value": 5.5}, "value": 0.6})
+        );
+
     }
 
     #[test]
@@ -1741,49 +1600,103 @@ mod tests {
         assert_eq!(result.final_state.unit_process.len(), 0);
         assert!(result.success);
     }
-
+/*
+// Define the elements of the production system.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct Element {
+    // Caudal de aceite
+        pub name: String,
+    // Waterflow
+        pub element_type: String,
+    // Agua
+        pub category: String,
+    // Caudal volumetrico
+        pub element_name: String,
+    // m^3/h
+        pub unit: String,
+    // Tipo de evento
+        pub manual_event: bool,
+    // Son x botellas al día, es un valor fijo
+    // Una medida del caudal tomada cada x días
+    pub absolute: bool,
+    // El que se mida
+    pub measure: Vec<(f64, Vec<Scopes>)>,
+}
+*/
+    
     #[test]
     fn test_change_operation_new() {
+        let mut custom_type_element = Fields(HashMap::new());
+        custom_type_element.0.insert("element_type".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("category".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("element_name".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("unit".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("manual_event".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert("absolute".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert("measure".to_owned(), DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))));
+        let mut custom_type_scopes = Fields(HashMap::new());
+        custom_type_scopes.0.insert("Temporal".to_owned(), DynamicType::u64);
+        custom_type_scopes.0.insert("TimeZone".to_owned(), DynamicType::String);
+        custom_type_scopes.0.insert("Tag".to_owned(), DynamicType::String);
+        let mut custom_type_measure = Fields(HashMap::new());
+        custom_type_measure.0.insert("value".to_owned(), DynamicType::f64);
+        custom_type_measure.0.insert("scopes".to_owned(), DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))));
+
+        let mut types = HashMap::new();
+        types.insert("Element".to_owned(), custom_type_element);
+        types.insert("MeasureType".to_owned(), custom_type_measure);
+
         let init_state = ProductionSystem {
             name: "wine process".to_owned(),
             version: 1,
             unit_process: vec![],
-            custom_types: HashMap::new(),
+            custom_types: types,
         };
 
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
             scope: vec![Scopes::Temporal(25)],
-            main_outputs: vec![Puts::Element(Element {
-                element_name: "Caudal volumetrico".to_owned(),
-                element_type: "WaterFlow".to_owned(),
-                category: "Caudal".to_owned(),
+            main_outputs: vec![Data {
                 name: "Caudal volumetrico del aceite".to_owned(),
-                unit: "m^3/h".to_owned(),
-                manual_event: false,
-                absolute: false,
-                measure: vec![],
-            })],
-            inputs: vec![Puts::Element(Element {
-                element_name: "PH".to_owned(),
-                element_type: "WaterFlow".to_owned(),
-                category: "Water".to_owned(),
-                name: "PH del agua".to_owned(),
-                unit: "pH".to_owned(),
-                absolute: false,
-                manual_event: false,
-                measure: vec![],
-            })],
-            other_outputs: vec![Puts::Element(Element {
-                absolute: false,
-                element_name: "Caudal volumetrico".to_owned(),
-                element_type: "WaterFlow".to_owned(),
-                category: "Caudal".to_owned(),
-                name: "Caudal volumetrico del aceite2".to_owned(),
-                unit: "m^3/h".to_owned(),
-                manual_event: false,
-                measure: vec![],
-            })],
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "Caudal volumetrico".to_owned(),
+                    "element_type": "WaterFlow".to_owned(),
+                    "category": "Caudal".to_owned(),
+                    "unit": "m^3/h".to_owned(),
+                    "manual_event": false,
+                    "absolute": false,
+                    "measure": []
+                })
+            }],
+            inputs: vec![
+                Data {
+                    name: "PH del agua".to_owned(),
+                    type_name: "Element".to_owned(),
+                    content: json!({
+                        "element_name": "PH".to_owned(),
+                        "element_type": "WaterFlow".to_owned(),
+                        "category": "Water".to_owned(),
+                        "unit": "pH".to_owned(),
+                        "absolute": false,
+                        "manual_event": false,
+                        "measure": [],
+                    })
+                }],
+            other_outputs: vec![
+                Data {
+                    name: "Caudal volumetrico del aceite2".to_owned(),
+                    type_name: "Element".to_owned(),
+                    content: json!({
+                        "absolute": false,
+                        "element_name": "Caudal volumetrico".to_owned(),
+                        "element_type": "WaterFlow".to_owned(),
+                        "category": "Caudal".to_owned(),
+                        "unit": "m^3/h".to_owned(),
+                        "manual_event": false,
+                        "measure": [],
+                    })
+                }],
         };
 
         let context = sdk::Context {
@@ -1801,6 +1714,7 @@ mod tests {
 
         contract_logic(&context, &mut result);
 
+        println!("{}", result.error);
         assert!(result.error.is_empty());
 
         assert_eq!(result.final_state.version, 2);
@@ -1809,42 +1723,42 @@ mod tests {
         assert_eq!(result.final_state.unit_process[0].other_outputs.len(), 1);
         assert_eq!(result.final_state.unit_process[0].inputs.len(), 1);
 
-        if let Puts::Element(element) = result.final_state.unit_process[0].inputs[0].clone() {
-            assert_eq!(element.element_name, "PH");
-            assert_eq!(element.name, "PH del agua");
-            assert_eq!(element.element_type, "WaterFlow");
-            assert_eq!(element.category, "Water");
-            assert_eq!(element.unit, "pH");
-            assert!(element.measure.is_empty());
-        } else {
-            panic!("Invalid Put");
-        };
+        let element = result.final_state.unit_process[0].inputs[0].clone();
+        assert_eq!(element.name, "PH del agua");
+        assert_eq!(element.content, json!({
+            "element_name": "PH".to_owned(),
+            "element_type": "WaterFlow".to_owned(),
+            "category": "Water".to_owned(),
+            "unit": "pH".to_owned(),
+            "absolute": false,
+            "manual_event": false,
+            "measure": [],
+        }));
+        
 
-        if let Puts::Element(element) = result.final_state.unit_process[0].main_outputs[0].clone() {
-            assert_eq!(element.element_name, "Caudal volumetrico");
-            assert_eq!(element.name, "Caudal volumetrico del aceite");
-            assert_eq!(element.element_type, "WaterFlow");
-            assert_eq!(element.category, "Caudal");
-            assert_eq!(element.unit, "m^3/h");
+        let element= result.final_state.unit_process[0].main_outputs[0].clone();
+        assert_eq!(element.name, "Caudal volumetrico del aceite");
+        assert_eq!(element.content, json!({
+            "element_name": "Caudal volumetrico".to_owned(),
+            "element_type": "WaterFlow".to_owned(),
+            "category": "Caudal".to_owned(),
+            "manual_event": false,
+            "unit": "m^3/h".to_owned(),
+            "absolute": false,
+            "measure": []
+        }));
 
-            assert!(element.measure.is_empty());
-            assert_eq!(element.absolute, false);
-            assert_eq!(element.manual_event, false);
-        } else {
-            panic!("Invalid Put");
-        };
-
-        if let Puts::Element(element) = result.final_state.unit_process[0].other_outputs[0].clone()
-        {
-            assert_eq!(element.element_name, "Caudal volumetrico");
-            assert_eq!(element.name, "Caudal volumetrico del aceite2");
-            assert_eq!(element.element_type, "WaterFlow");
-            assert_eq!(element.category, "Caudal");
-            assert_eq!(element.unit, "m^3/h");
-            assert!(element.measure.is_empty());
-        } else {
-            panic!("Invalid Put");
-        };
+        let element = result.final_state.unit_process[0].other_outputs[0].clone();
+        assert_eq!(element.name, "Caudal volumetrico del aceite2");
+        assert_eq!(element.content, json!({
+            "absolute": false,
+            "element_name": "Caudal volumetrico".to_owned(),
+            "element_type": "WaterFlow".to_owned(),
+            "category": "Caudal".to_owned(),
+            "unit": "m^3/h".to_owned(),
+            "manual_event": false,
+            "measure": [],
+        }));
 
         if let Scopes::Temporal(temporal) = result.final_state.unit_process[0].scope[0] {
             assert_eq!(temporal, 25);
@@ -1856,30 +1770,57 @@ mod tests {
         assert!(result.success);
     }
 
+    
     #[test]
     fn test_change_operation_add() {
+        let mut custom_type_element = Fields(HashMap::new());
+        custom_type_element.0.insert("element_type".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("category".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("element_name".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("unit".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("manual_event".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert("absolute".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert("measure".to_owned(), DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))));
+        let mut custom_type_scopes = Fields(HashMap::new());
+        custom_type_scopes.0.insert("Temporal".to_owned(), DynamicType::u64);
+        custom_type_scopes.0.insert("TimeZone".to_owned(), DynamicType::String);
+        custom_type_scopes.0.insert("Tag".to_owned(), DynamicType::String);
+        let mut custom_type_measure = Fields(HashMap::new());
+        custom_type_measure.0.insert("value".to_owned(), DynamicType::f64);
+        custom_type_measure.0.insert("scopes".to_owned(), DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))));
+
+        let mut types = HashMap::new();
+        types.insert("Element".to_owned(), custom_type_element);
+        types.insert("MeasureType".to_owned(), custom_type_measure);
+
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
-            main_outputs: vec![Puts::Element(Element {
-                element_name: "Caudal volumetrico".to_owned(),
-                element_type: "WaterFlow".to_owned(),
-                category: "Caudal".to_owned(),
+            main_outputs: vec![Data {
                 name: "Caudal volumetrico del aceite".to_owned(),
-                unit: "m^3/h".to_owned(),
-                measure: vec![],
-                absolute: false,
-                manual_event: false,
-            })],
-            inputs: vec![Puts::Element(Element {
-                element_name: "PH".to_owned(),
-                element_type: "WaterFlow".to_owned(),
-                category: "Water".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "Caudal volumetrico".to_owned(),
+                    "element_type": "WaterFlow".to_owned(),
+                    "category": "Caudal".to_owned(),
+                    "unit": "m^3/h".to_owned(),
+                    "manual_event": false,
+                    "absolute": false,
+                    "measure": []
+                })
+            }],
+            inputs: vec![Data {
                 name: "PH del agua".to_owned(),
-                unit: "pH".to_owned(),
-                measure: vec![],
-                manual_event: false,
-                absolute: false,
-            })],
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "PH".to_owned(),
+                    "element_type": "WaterFlow".to_owned(),
+                    "category": "Water".to_owned(),
+                    "unit": "pH".to_owned(),
+                    "absolute": false,
+                    "manual_event": false,
+                    "measure": [],
+                })
+            }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(25)],
         };
@@ -1888,56 +1829,85 @@ mod tests {
             name: "wine process".to_owned(),
             version: 1,
             unit_process: vec![unit_process_1],
-            custom_types: HashMap::new(),
+            custom_types: types,
         };
 
         let unit_process_2 = UnitProcess {
             name: "bottling of wine".to_owned(),
-            main_outputs: vec![Puts::Element(Element {
-                element_name: "Caudal volumetrico2".to_owned(),
-                element_type: "WaterFlow2".to_owned(),
-                category: "Caudal2".to_owned(),
-                name: "Caudal volumetrico2 del aceite".to_owned(),
-                unit: "m^3/h2".to_owned(),
-                measure: vec![],
-                absolute: false,
-                manual_event: false,
-            })],
-            inputs: vec![Puts::Element(Element {
-                element_type: "WaterFlow2".to_owned(),
-                category: "Water2".to_owned(),
-                name: "PH2 del agua".to_owned(),
-                element_name: "PH2".to_owned(),
-                unit: "pH2".to_owned(),
-                measure: vec![],
-                manual_event: false,
-                absolute: false,
-            })],
+            main_outputs: vec![
+                Data {
+                    name: "Caudal volumetrico2 del aceite".to_owned(),
+                    type_name: "Element".to_owned(),
+                    content: json!({
+                        "element_name": "Caudal volumetrico2".to_owned(),
+                        "element_type": "WaterFlow2".to_owned(),
+                        "category": "Caudal2".to_owned(),
+                        "unit": "m^3/h2".to_owned(),
+                        "measure": [],
+                        "absolute": false,
+                        "manual_event": false,
+                    })
+                }],
+            inputs: vec![
+                Data {
+                    name: "PH2 del agua".to_owned(),
+                    type_name: "Element".to_owned(),
+                    content: json!({
+                        "element_type": "WaterFlow2".to_owned(),
+                        "category": "Water2".to_owned(),
+                        "element_name": "PH2".to_owned(),
+                        "unit": "pH2".to_owned(),
+                        "measure": [],
+                        "manual_event": false,
+                        "absolute": false,
+                    })
+                }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(33)],
         };
         let unit_process_3 = UnitProcess {
             name: "bottling of winee".to_owned(),
-            main_outputs: vec![Puts::Element(Element {
-                element_name: "Caudal volumetrico2".to_owned(),
-                element_type: "WaterFlow2".to_owned(),
-                category: "Caudal2".to_owned(),
-                name: "Caudal volumetrico2 del aceite".to_owned(),
-                unit: "m^3/h2".to_owned(),
-                measure: vec![],
-                absolute: false,
-                manual_event: false,
-            })],
-            inputs: vec![Puts::Element(Element {
-                element_type: "WaterFlow2".to_owned(),
-                category: "Water2".to_owned(),
-                name: "PH2 del agua".to_owned(),
-                element_name: "PH2".to_owned(),
-                unit: "pH2".to_owned(),
-                measure: vec![],
-                manual_event: false,
-                absolute: false,
-            })],
+            main_outputs: vec![
+                Data {
+                    name: "Caudal volumetrico3 del aceite".to_owned(),
+                    type_name: "Element".to_owned(),
+                    content: json!({
+                        "element_name": "Caudal volumetrico2".to_owned(),
+                        "element_type": "WaterFlow2".to_owned(),
+                        "category": "Caudal3".to_owned(),
+                        "unit": "m^3/h2".to_owned(),
+                        "measure": [],
+                        "absolute": false,
+                        "manual_event": false,
+                    })
+                }],
+            inputs: vec![
+                Data {
+                    name: "PH3 del agua".to_owned(),
+                    type_name: "Element".to_owned(),
+                    content: json!({
+                        "element_type": "WaterFlow2".to_owned(),
+                        "category": "Water2".to_owned(),
+                        "element_name": "PH3".to_owned(),
+                        "unit": "pH2".to_owned(),
+                        "measure": [{
+                            "value": 0.5,
+                            "scopes": [
+                                {
+                                    "Temporal": 5555
+                                },
+                                {
+                                    "Tag": "IA"
+                                },
+                                {
+                                    "TimeZone": "UTC-0"
+                                },
+                            ]
+                        }],
+                        "manual_event": false,
+                        "absolute": false,
+                    })
+                }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(33)],
         };
@@ -1963,49 +1933,90 @@ mod tests {
         assert_eq!(result.final_state.unit_process[0].name, "grape treading");
         assert_eq!(result.final_state.unit_process[0].other_outputs.len(), 0);
 
-        if let Puts::Element(element) = result.final_state.unit_process[0].inputs[0].clone() {
-            assert_eq!(element.element_name, "PH");
-            assert_eq!(element.element_type, "WaterFlow");
-            assert_eq!(element.category, "Water");
-            assert_eq!(element.unit, "pH");
-        } else {
-            panic!("Invalid Put");
-        };
-        if let Puts::Element(element) = result.final_state.unit_process[1].inputs[0].clone() {
-            assert_eq!(element.element_name, "PH2");
-            assert_eq!(element.name, "PH2 del agua");
-            assert_eq!(element.element_type, "WaterFlow2");
-            assert_eq!(element.category, "Water2");
-            assert_eq!(element.unit, "pH2");
-        } else {
-            panic!("Invalid Put");
-        };
+        let element = result.final_state.unit_process[0].inputs[0].clone();
+        assert_eq!(element.name, "PH del agua");
+        assert_eq!(element.content, json!({
+            "element_name": "PH".to_owned(),
+            "element_type": "WaterFlow".to_owned(),
+            "category": "Water".to_owned(),
+            "unit": "pH".to_owned(),
+            "absolute": false,
+            "manual_event": false,
+            "measure": [],
+        }));
 
-        if let Puts::Element(element) = result.final_state.unit_process[0].main_outputs[0].clone() {
-            assert_eq!(element.element_name, "Caudal volumetrico");
-            assert_eq!(element.name, "Caudal volumetrico del aceite");
-            assert_eq!(element.element_type, "WaterFlow");
-            assert_eq!(element.category, "Caudal");
-            assert_eq!(element.unit, "m^3/h");
-            // fixed and manual_event
-            assert_eq!(element.absolute, false);
-            assert_eq!(element.manual_event, false);
-        } else {
-            panic!("Invalid Put");
-        };
-        if let Puts::Element(element) = result.final_state.unit_process[1].main_outputs[0].clone() {
-            assert_eq!(element.element_name, "Caudal volumetrico2");
-            assert_eq!(element.name, "Caudal volumetrico2 del aceite");
-            assert_eq!(element.element_type, "WaterFlow2");
-            assert_eq!(element.category, "Caudal2");
-            assert_eq!(element.unit, "m^3/h2");
-            assert!(element.measure.is_empty());
-            // fixed and manual_event
-            assert_eq!(element.absolute, false);
-            assert_eq!(element.manual_event, false);
-        } else {
-            panic!("Invalid Put");
-        };
+        let element = result.final_state.unit_process[1].inputs[0].clone();
+        assert_eq!(element.name, "PH2 del agua");
+        assert_eq!(element.content, json!({
+            "element_type": "WaterFlow2".to_owned(),
+            "category": "Water2".to_owned(),
+            "element_name": "PH2".to_owned(),
+            "unit": "pH2".to_owned(),
+            "measure": [],
+            "manual_event": false,
+            "absolute": false,
+        }));
+
+        let element = result.final_state.unit_process[2].inputs[0].clone();
+        assert_eq!(element.name, "PH3 del agua");
+        assert_eq!(element.content, json!({
+            "element_type": "WaterFlow2".to_owned(),
+            "category": "Water2".to_owned(),
+            "element_name": "PH3".to_owned(),
+            "unit": "pH2".to_owned(),
+            "measure": [{
+                "value": 0.5,
+                "scopes": [
+                    {
+                        "Temporal": 5555
+                    },
+                    {
+                        "Tag": "IA"
+                    },
+                    {
+                        "TimeZone": "UTC-0"
+                    },
+                ]
+            }],
+            "manual_event": false,
+            "absolute": false,
+        }));
+
+        let element = result.final_state.unit_process[0].main_outputs[0].clone();
+        assert_eq!(element.name, "Caudal volumetrico del aceite");
+        assert_eq!(element.content, json!({
+            "element_name": "Caudal volumetrico".to_owned(),
+            "element_type": "WaterFlow".to_owned(),
+            "category": "Caudal".to_owned(),
+            "unit": "m^3/h".to_owned(),
+            "manual_event": false,
+            "absolute": false,
+            "measure": []
+        }));
+
+        let element = result.final_state.unit_process[1].main_outputs[0].clone();
+        assert_eq!(element.name, "Caudal volumetrico2 del aceite");
+        assert_eq!(element.content, json!({
+            "element_name": "Caudal volumetrico2".to_owned(),
+            "element_type": "WaterFlow2".to_owned(),
+            "category": "Caudal2".to_owned(),
+            "unit": "m^3/h2".to_owned(),
+            "measure": [],
+            "absolute": false,
+            "manual_event": false,
+        }));
+
+        let element = result.final_state.unit_process[2].main_outputs[0].clone();
+        assert_eq!(element.name, "Caudal volumetrico3 del aceite");
+        assert_eq!(element.content, json!({
+            "element_name": "Caudal volumetrico2".to_owned(),
+            "element_type": "WaterFlow2".to_owned(),
+            "category": "Caudal3".to_owned(),
+            "unit": "m^3/h2".to_owned(),
+            "measure": [],
+            "absolute": false,
+            "manual_event": false,
+        }));
 
         if let Scopes::Temporal(temporal) = result.final_state.unit_process[0].scope[0] {
             assert_eq!(temporal, 25);
@@ -2027,88 +2038,91 @@ mod tests {
         assert!(result.success);
     }
 
+    
     #[test]
     fn test_change_operation_delete() {
+        let mut custom_type_element = Fields(HashMap::new());
+        custom_type_element.0.insert("element_type".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("category".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("element_name".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("unit".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("manual_event".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert("absolute".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert("measure".to_owned(), DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))));
+        let mut custom_type_scopes = Fields(HashMap::new());
+        custom_type_scopes.0.insert("Temporal".to_owned(), DynamicType::u64);
+        custom_type_scopes.0.insert("TimeZone".to_owned(), DynamicType::String);
+        custom_type_scopes.0.insert("Tag".to_owned(), DynamicType::String);
+        let mut custom_type_measure = Fields(HashMap::new());
+        custom_type_measure.0.insert("value".to_owned(), DynamicType::f64);
+        custom_type_measure.0.insert("scopes".to_owned(), DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))));
+
+        let mut types = HashMap::new();
+        types.insert("Element".to_owned(), custom_type_element);
+        types.insert("MeasureType".to_owned(), custom_type_measure);
+
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
-            main_outputs: vec![Puts::Element(Element {
-                element_name: "Caudal volumetrico".to_owned(),
-                element_type: "WaterFlow".to_owned(),
-                category: "Caudal".to_owned(),
+            main_outputs: vec![Data {
                 name: "Caudal volumetrico del aceite".to_owned(),
-                unit: "m^3/h".to_owned(),
-                measure: vec![
-                    (0_f64, vec![Scopes::Temporal(1)]),
-                    (0_f64, vec![Scopes::Temporal(2)]),
-                    (0_f64, vec![Scopes::Temporal(3)]),
-                    (0_f64, vec![Scopes::Temporal(4)]),
-                    (0_f64, vec![Scopes::Temporal(5)]),
-                    (0_f64, vec![Scopes::Temporal(6)]),
-                    (0_f64, vec![Scopes::Temporal(7)]),
-                    (0_f64, vec![Scopes::Temporal(8)]),
-                    (0_f64, vec![Scopes::Temporal(9)]),
-                    (0_f64, vec![Scopes::Temporal(10)]),
-                ],
-                manual_event: false,
-                absolute: false,
-            })],
-            inputs: vec![Puts::Element(Element {
-                element_type: "WaterFlow".to_owned(),
-                category: "Water".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "Caudal volumetrico".to_owned(),
+                    "element_type": "WaterFlow".to_owned(),
+                    "category": "Caudal".to_owned(),
+                    "unit": "m^3/h".to_owned(),
+                    "manual_event": false,
+                    "absolute": false,
+                    "measure": []
+                })
+            }],
+            inputs: vec![Data {
                 name: "PH del agua".to_owned(),
-                element_name: "PH".to_owned(),
-                unit: "pH".to_owned(),
-                manual_event: false,
-                absolute: false,
-                measure: vec![
-                    (0_f64, vec![Scopes::Temporal(1)]),
-                    (0_f64, vec![Scopes::Temporal(2)]),
-                    (0_f64, vec![Scopes::Temporal(3)]),
-                    (0_f64, vec![Scopes::Temporal(4)]),
-                    (0_f64, vec![Scopes::Temporal(5)]),
-                    (0_f64, vec![Scopes::Temporal(6)]),
-                    (0_f64, vec![Scopes::Temporal(7)]),
-                    (0_f64, vec![Scopes::Temporal(8)]),
-                    (0_f64, vec![Scopes::Temporal(9)]),
-                    (0_f64, vec![Scopes::Temporal(10)]),
-                ],
-            })],
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "PH".to_owned(),
+                    "element_type": "WaterFlow".to_owned(),
+                    "category": "Water".to_owned(),
+                    "unit": "pH".to_owned(),
+                    "absolute": false,
+                    "manual_event": false,
+                    "measure": [],
+                })
+            }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(25)],
         };
 
         let unit_process_2 = UnitProcess {
             name: "bottling of wine".to_owned(),
-            main_outputs: vec![Puts::Element(Element {
-                element_name: "Caudal volumetrico2".to_owned(),
-                element_type: "WaterFlow2".to_owned(),
-                category: "Caudal2".to_owned(),
-                name: "Caudal volumetrico2 del aceite".to_owned(),
-                unit: "m^3/h2".to_owned(),
-                manual_event: false,
-                absolute: false,
-                measure: vec![
-                    (5_f64, vec![Scopes::Temporal(1)]),
-                    (5_f64, vec![Scopes::Temporal(2)]),
-                    (5_f64, vec![Scopes::Temporal(3)]),
-                    (5_f64, vec![Scopes::Temporal(4)]),
-                ],
-            })],
-            inputs: vec![Puts::Element(Element {
-                element_type: "WaterFlow2".to_owned(),
-                category: "Water2".to_owned(),
-                name: "PH2 del agua".to_owned(),
-                element_name: "PH2".to_owned(),
-                unit: "pH2".to_owned(),
-                manual_event: false,
-                absolute: false,
-                measure: vec![
-                    (5_f64, vec![Scopes::Temporal(1)]),
-                    (5_f64, vec![Scopes::Temporal(2)]),
-                    (5_f64, vec![Scopes::Temporal(3)]),
-                    (5_f64, vec![Scopes::Temporal(4)]),
-                ],
-            })],
+            main_outputs: vec![
+                Data {
+                    name: "Caudal volumetrico2 del aceite".to_owned(),
+                    type_name: "Element".to_owned(),
+                    content: json!({
+                        "element_name": "Caudal volumetrico2".to_owned(),
+                        "element_type": "WaterFlow2".to_owned(),
+                        "category": "Caudal2".to_owned(),
+                        "unit": "m^3/h2".to_owned(),
+                        "measure": [],
+                        "absolute": false,
+                        "manual_event": false,
+                    })
+                }],
+            inputs: vec![
+                Data {
+                    name: "PH2 del agua".to_owned(),
+                    type_name: "Element".to_owned(),
+                    content: json!({
+                        "element_type": "WaterFlow2".to_owned(),
+                        "category": "Water2".to_owned(),
+                        "element_name": "PH2".to_owned(),
+                        "unit": "pH2".to_owned(),
+                        "measure": [],
+                        "manual_event": false,
+                        "absolute": false,
+                    })
+                }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(33)],
         };
@@ -2117,7 +2131,7 @@ mod tests {
             name: "wine process".to_owned(),
             version: 1,
             unit_process: vec![unit_process_1, unit_process_2],
-            custom_types: HashMap::new(),
+            custom_types: types,
         };
 
         let context = sdk::Context {
@@ -2141,63 +2155,97 @@ mod tests {
 
     #[test]
     fn test_change_operation_modify() {
+        let mut custom_type_element = Fields(HashMap::new());
+        custom_type_element.0.insert("element_type".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("category".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("element_name".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("unit".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("manual_event".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert("absolute".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert("measure".to_owned(), DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))));
+        let mut custom_type_scopes = Fields(HashMap::new());
+        custom_type_scopes.0.insert("Temporal".to_owned(), DynamicType::u64);
+        custom_type_scopes.0.insert("TimeZone".to_owned(), DynamicType::String);
+        custom_type_scopes.0.insert("Tag".to_owned(), DynamicType::String);
+        let mut custom_type_measure = Fields(HashMap::new());
+        custom_type_measure.0.insert("value".to_owned(), DynamicType::f64);
+        custom_type_measure.0.insert("scopes".to_owned(), DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))));
+
+        let mut types = HashMap::new();
+        types.insert("Element".to_owned(), custom_type_element);
+        types.insert("MeasureType".to_owned(), custom_type_measure);
+
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
-            main_outputs: vec![Puts::Element(Element {
-                element_name: "Caudal volumetrico".to_owned(),
-                element_type: "WaterFlow".to_owned(),
-                category: "Caudal".to_owned(),
+            main_outputs: vec![Data {
                 name: "Caudal volumetrico del aceite".to_owned(),
-                unit: "m^3/h".to_owned(),
-                measure: vec![],
-                absolute: false,
-                manual_event: false,
-            })],
-            inputs: vec![Puts::Element(Element {
-                element_name: "PH".to_owned(),
-                element_type: "WaterFlow".to_owned(),
-                category: "Water".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "Caudal volumetrico".to_owned(),
+                    "element_type": "WaterFlow".to_owned(),
+                    "category": "Caudal".to_owned(),
+                    "unit": "m^3/h".to_owned(),
+                    "manual_event": false,
+                    "absolute": false,
+                    "measure": []
+                })
+            }],
+            inputs: vec![Data {
                 name: "PH del agua".to_owned(),
-                unit: "pH".to_owned(),
-                measure: vec![],
-                absolute: false,
-                manual_event: false,
-            })],
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "PH".to_owned(),
+                    "element_type": "WaterFlow".to_owned(),
+                    "category": "Water".to_owned(),
+                    "unit": "pH".to_owned(),
+                    "absolute": false,
+                    "manual_event": false,
+                    "measure": [],
+                })
+            }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(25)],
+        };
+
+        let unit_process_2 = UnitProcess {
+            name: "bottling of wine".to_owned(),
+            main_outputs: vec![
+                Data {
+                    name: "Caudal volumetrico2 del aceite".to_owned(),
+                    type_name: "Element".to_owned(),
+                    content: json!({
+                        "element_name": "Caudal volumetrico2".to_owned(),
+                        "element_type": "WaterFlow2".to_owned(),
+                        "category": "Caudal2".to_owned(),
+                        "unit": "m^3/h2".to_owned(),
+                        "measure": [],
+                        "absolute": false,
+                        "manual_event": false,
+                    })
+                }],
+            inputs: vec![
+                Data {
+                    name: "PH2 del agua".to_owned(),
+                    type_name: "Element".to_owned(),
+                    content: json!({
+                        "element_type": "WaterFlow2".to_owned(),
+                        "category": "Water2".to_owned(),
+                        "element_name": "PH2".to_owned(),
+                        "unit": "pH2".to_owned(),
+                        "measure": [],
+                        "manual_event": false,
+                        "absolute": false,
+                    })
+                }],
+            other_outputs: vec![],
+            scope: vec![Scopes::Temporal(33)],
         };
 
         let init_state = ProductionSystem {
             name: "wine process".to_owned(),
             version: 1,
             unit_process: vec![unit_process_1],
-            custom_types: HashMap::new(),
-        };
-
-        let unit_process_2 = UnitProcess {
-            name: "bottling of wine".to_owned(),
-            main_outputs: vec![Puts::Element(Element {
-                element_name: "Caudal volumetrico2".to_owned(),
-                element_type: "WaterFlow2".to_owned(),
-                category: "Caudal2".to_owned(),
-                name: "Caudal volumetrico2 del aceite".to_owned(),
-                unit: "m^3/h2".to_owned(),
-                measure: vec![],
-                absolute: false,
-                manual_event: false,
-            })],
-            inputs: vec![Puts::Element(Element {
-                element_type: "WaterFlow2".to_owned(),
-                category: "Water2".to_owned(),
-                name: "PH2 del agua".to_owned(),
-                element_name: "PH2".to_owned(),
-                unit: "pH2".to_owned(),
-                measure: vec![],
-                absolute: false,
-                manual_event: false,
-            })],
-            other_outputs: vec![],
-            scope: vec![Scopes::Temporal(33)],
+            custom_types: types,
         };
 
         let context = sdk::Context {
@@ -2218,25 +2266,30 @@ mod tests {
         assert_eq!(result.final_state.unit_process[0].other_outputs.len(), 0);
 
         assert_eq!(result.final_state.unit_process[0].name, "bottling of wine");
-        if let Puts::Element(element) = result.final_state.unit_process[0].inputs[0].clone() {
-            assert_eq!(element.element_name, "PH2");
-            assert_eq!(element.name, "PH2 del agua");
-            assert_eq!(element.element_type, "WaterFlow2");
-            assert_eq!(element.category, "Water2");
-            assert_eq!(element.unit, "pH2");
-        } else {
-            panic!("Invalid Put");
-        };
 
-        if let Puts::Element(element) = result.final_state.unit_process[0].main_outputs[0].clone() {
-            assert_eq!(element.element_name, "Caudal volumetrico2");
-            assert_eq!(element.name, "Caudal volumetrico2 del aceite");
-            assert_eq!(element.element_type, "WaterFlow2");
-            assert_eq!(element.category, "Caudal2");
-            assert_eq!(element.unit, "m^3/h2");
-        } else {
-            panic!("Invalid Put");
-        };
+        let element = result.final_state.unit_process[0].inputs[0].clone();
+        assert_eq!(element.name, "PH2 del agua");
+        assert_eq!(element.content, json!({
+            "element_type": "WaterFlow2".to_owned(),
+            "category": "Water2".to_owned(),
+            "element_name": "PH2".to_owned(),
+            "unit": "pH2".to_owned(),
+            "measure": [],
+            "manual_event": false,
+            "absolute": false,
+        }));
+
+        let element = result.final_state.unit_process[0].main_outputs[0].clone();
+        assert_eq!(element.name, "Caudal volumetrico2 del aceite");
+        assert_eq!(element.content, json!({
+            "element_name": "Caudal volumetrico2".to_owned(),
+            "element_type": "WaterFlow2".to_owned(),
+            "category": "Caudal2".to_owned(),
+            "unit": "m^3/h2".to_owned(),
+            "measure": [],
+            "absolute": false,
+            "manual_event": false,
+        }));
 
         if let Scopes::Temporal(temporal) = result.final_state.unit_process[0].scope[0] {
             assert_eq!(temporal, 33);
@@ -2249,28 +2302,54 @@ mod tests {
 
     #[test]
     fn test_change_register_data() {
+        let mut custom_type_element = Fields(HashMap::new());
+        custom_type_element.0.insert("element_type".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("category".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("element_name".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("unit".to_owned(), DynamicType::String);
+        custom_type_element.0.insert("manual_event".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert("absolute".to_owned(), DynamicType::bool);
+        custom_type_element.0.insert("measure".to_owned(), DynamicType::Vec(Box::new(DynamicType::Type("MeasureType".to_owned()))));
+        let mut custom_type_scopes = Fields(HashMap::new());
+        custom_type_scopes.0.insert("Temporal".to_owned(), DynamicType::u64);
+        custom_type_scopes.0.insert("TimeZone".to_owned(), DynamicType::String);
+        custom_type_scopes.0.insert("Tag".to_owned(), DynamicType::String);
+        let mut custom_type_measure = Fields(HashMap::new());
+        custom_type_measure.0.insert("value".to_owned(), DynamicType::f64);
+        custom_type_measure.0.insert("scopes".to_owned(), DynamicType::Vec(Box::new(DynamicType::Enum(custom_type_scopes))));
+
+        let mut types = HashMap::new();
+        types.insert("Element".to_owned(), custom_type_element);
+        types.insert("MeasureType".to_owned(), custom_type_measure);
+
         let unit_process_1 = UnitProcess {
             name: "grape treading".to_owned(),
-            main_outputs: vec![Puts::Element(Element {
-                element_name: "Caudal volumetrico".to_owned(),
-                element_type: "WaterFlow".to_owned(),
-                category: "Caudal".to_owned(),
+            main_outputs: vec![Data {
                 name: "Caudal volumetrico del aceite".to_owned(),
-                unit: "m^3/h".to_owned(),
-                measure: vec![(0_f64, vec![Scopes::Temporal(0)])],
-                absolute: false,
-                manual_event: false,
-            })],
-            inputs: vec![Puts::Element(Element {
-                element_type: "WaterFlow".to_owned(),
-                category: "Water".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "Caudal volumetrico".to_owned(),
+                    "element_type": "WaterFlow".to_owned(),
+                    "category": "Caudal".to_owned(),
+                    "unit": "m^3/h".to_owned(),
+                    "manual_event": false,
+                    "absolute": false,
+                    "measure": []
+                })
+            }],
+            inputs: vec![Data {
                 name: "PH del agua".to_owned(),
-                element_name: "PH".to_owned(),
-                unit: "pH".to_owned(),
-                measure: vec![(0_f64, vec![Scopes::Temporal(0)])],
-                absolute: false,
-                manual_event: false,
-            })],
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "PH".to_owned(),
+                    "element_type": "WaterFlow".to_owned(),
+                    "category": "Water".to_owned(),
+                    "unit": "pH".to_owned(),
+                    "absolute": false,
+                    "manual_event": false,
+                    "measure": [],
+                })
+            }],
             other_outputs: vec![],
             scope: vec![Scopes::Temporal(25)],
         };
@@ -2278,34 +2357,68 @@ mod tests {
         let init_state = ProductionSystem {
             name: "wine process".to_owned(),
             version: 1,
-            unit_process: vec![unit_process_1.clone()],
-            custom_types: HashMap::new(),
+            unit_process: vec![unit_process_1],
+            custom_types: types,
         };
 
         let data_update = UnitData {
             scope: Some(vec![Scopes::Temporal(25)]),
             name: "grape treading".to_owned(),
-            main_outputs: Some(vec![Puts::Element(Element {
-                element_name: "Caudal volumetrico".to_owned(),
-                element_type: "WaterFlow".to_owned(),
-                category: "Caudal".to_owned(),
+            main_outputs: Some(vec![Data {
                 name: "Caudal volumetrico del aceite".to_owned(),
-                unit: "m^3/h".to_owned(),
-                measure: vec![(21_f64, vec![Scopes::Temporal(55)])],
-                absolute: false,
-
-                manual_event: false,
-            })]),
-            inputs: Some(vec![Puts::Element(Element {
-                element_type: "WaterFlow".to_owned(),
-                category: "Water".to_owned(),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "Caudal volumetrico".to_owned(),
+                    "element_type": "WaterFlow".to_owned(),
+                    "category": "Caudal".to_owned(),
+                    "unit": "m^3/h".to_owned(),
+                    "manual_event": false,
+                    "absolute": false,
+                    "measure": [{
+                        "value": 0.5,
+                        "scopes": [
+                            {
+                                "Temporal": 5555
+                            },
+                            {
+                                "Tag": "IA"
+                            },
+                            {
+                                "TimeZone": "UTC-0"
+                            },
+                        ]
+                    }],
+                })
+            }]),
+            inputs: Some(vec![Data {
                 name: "PH del agua".to_owned(),
-                element_name: "PH".to_owned(),
-                unit: "pH".to_owned(),
-                measure: vec![(44_f64, vec![Scopes::Temporal(55)])],
-                absolute: false,
-                manual_event: false,
-            })]),
+                type_name: "Element".to_owned(),
+                content: json!({
+                    "element_name": "PH".to_owned(),
+                    "element_type": "WaterFlow".to_owned(),
+                    "category": "Water".to_owned(),
+                    "unit": "pH".to_owned(),
+                    "absolute": false,
+                    "manual_event": false,
+                    "measure": [{
+                        "value": 24.5,
+                        "scopes": [
+                            {
+                                "Temporal": 515
+                            },
+                            {
+                                "Tag": "Ledger"
+                            },
+                            {
+                                "Tag": "IA"
+                            },
+                            {
+                                "TimeZone": "UTC+1"
+                            },
+                        ]
+                    }],
+                })
+            }]),
             other_outputs: None,
         };
 
@@ -2323,36 +2436,58 @@ mod tests {
         assert_eq!(result.final_state.unit_process[0].name, "grape treading");
         assert_eq!(result.final_state.unit_process[0].other_outputs.len(), 0);
 
-        if let Puts::Element(element) = result.final_state.unit_process[0].inputs[0].clone() {
-            assert_eq!(element.element_name, "PH");
-            assert_eq!(element.name, "PH del agua");
-            assert_eq!(element.element_type, "WaterFlow");
-            assert_eq!(element.category, "Water");
-            assert_eq!(element.unit, "pH");
-        } else {
-            panic!("Invalid Put");
-        };
+        let element = result.final_state.unit_process[0].inputs[0].clone();
+        assert_eq!(element.name, "PH del agua");
+        assert_eq!(element.content, json!({
+            "element_name": "PH".to_owned(),
+            "element_type": "WaterFlow".to_owned(),
+            "category": "Water".to_owned(),
+            "unit": "pH".to_owned(),
+            "absolute": false,
+            "manual_event": false,
+            "measure": [{
+                "value": 24.5,
+                "scopes": [
+                    {
+                        "Temporal": 515
+                    },
+                    {
+                        "Tag": "Ledger"
+                    },
+                    {
+                        "Tag": "IA"
+                    },
+                    {
+                        "TimeZone": "UTC+1"
+                    },
+                ]
+            }],
+        }));
 
-        if let Puts::Element(element) = result.final_state.unit_process[0].main_outputs[0].clone() {
-            assert_eq!(element.element_name, "Caudal volumetrico");
-            assert_eq!(element.name, "Caudal volumetrico del aceite");
-            assert_eq!(element.element_type, "WaterFlow");
-            assert_eq!(element.category, "Caudal");
-            assert_eq!(element.unit, "m^3/h");
-            // measure
-
-            if let Scopes::Temporal(temporal) = element.measure[0].1[0] {
-                assert_eq!(temporal, 55);
-            } else {
-                panic!("Invalid Scope")
-            }
-            assert_eq!(element.measure[0].0, 21_f64);
-            // fixed and manual_event
-            assert_eq!(element.absolute, false);
-            assert_eq!(element.manual_event, false);
-        } else {
-            panic!("Invalid Put");
-        };
+        let element = result.final_state.unit_process[0].main_outputs[0].clone();
+        assert_eq!(element.name, "Caudal volumetrico del aceite");
+        assert_eq!(element.content, json!({
+            "element_name": "Caudal volumetrico".to_owned(),
+            "element_type": "WaterFlow".to_owned(),
+            "category": "Caudal".to_owned(),
+            "unit": "m^3/h".to_owned(),
+            "manual_event": false,
+            "absolute": false,
+            "measure": [{
+                "value": 0.5,
+                "scopes": [
+                    {
+                        "Temporal": 5555
+                    },
+                    {
+                        "Tag": "IA"
+                    },
+                    {
+                        "TimeZone": "UTC-0"
+                    },
+                ]
+            }],
+        }));
 
         if let Scopes::Temporal(temporal) = result.final_state.unit_process[0].scope[0] {
             assert_eq!(temporal, 25);
