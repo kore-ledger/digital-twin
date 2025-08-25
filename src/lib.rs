@@ -387,8 +387,8 @@ impl DynamicType {
                 };
 
                 match obj_type {
-                    Fields::Basic(..) => {
-                        return Err("If Value is a type must be a object".to_owned());
+                    Fields::Basic( type_dyn) => {
+                        type_dyn.deserialize(value, custom_types)?;
                     }
                     Fields::Object(hash_map) => {
                         let Some(mut obj_dynamic) = value.as_object().cloned() else {
@@ -467,14 +467,7 @@ impl DynamicType {
                     return Err("Custom type con not be empty".to_string());
                 }
 
-                if let Some(custom_type) = custom_types.get(c_type) {
-                    if let Fields::Basic(..) = custom_type {
-                        return Err(format!(
-                            "Custom type can not be a Basic Fields: type: {}",
-                            c_type
-                        ));
-                    }
-                } else {
+                if !custom_types.contains_key(c_type) {
                     return Err(format!("Type {} does not exist", c_type));
                 }
 
@@ -2420,10 +2413,21 @@ mod tests {
                         ])),
                     ),
                     (
+                        "VecType".to_owned(),
+                        Fields::Basic(Box::new(DynamicType::Vec(Box::new(DynamicType::String)))),
+                    ),
+                    (
                         "UserObject".to_owned(),
                         Fields::Object(HashMap::from([(
                             "value".to_owned(),
                             DynamicType::Type("DataType".to_owned()),
+                        )])),
+                    ),
+                    (
+                        "UserVec".to_owned(),
+                        Fields::Object(HashMap::from([(
+                            "value".to_owned(),
+                            DynamicType::Type("VecType".to_owned()),
                         )])),
                     ),
                 ]),
@@ -2436,6 +2440,17 @@ mod tests {
         contract_logic(&context, &mut result);
 
         assert!(result.error.is_empty());
+        assert_eq!(
+            result.state.custom_types.get("VecType").unwrap().clone(),
+            Fields::Basic(Box::new(DynamicType::Vec(Box::new(DynamicType::String)))),
+        );
+        assert_eq!(
+            result.state.custom_types.get("UserVec").unwrap().clone(),
+            Fields::Object(HashMap::from([(
+                "value".to_owned(),
+                DynamicType::Type("VecType".to_owned()),
+            )])),
+        );
         assert_eq!(
             result.state.custom_types.get("UserObject").unwrap().clone(),
             Fields::Object(HashMap::from([(
@@ -2450,7 +2465,7 @@ mod tests {
                 ("value".to_owned(), DynamicType::u64,)
             ])),
         );
-        assert_eq!(result.state.custom_types.len(), 2);
+        assert_eq!(result.state.custom_types.len(), 4);
 
         ////////////////////////////////////////////////////////////////
         // Unit process
@@ -2463,7 +2478,12 @@ mod tests {
                 content: json!({"value": {"text": "info", "value": 30}}),
                 targets: None,
             }],
-            inputs: vec![],
+            inputs: vec![Data {
+                name: "Example Vec".to_owned(),
+                type_name: "UserVec".to_owned(),
+                content: json!({"value": ["one", "two"]}),
+                targets: None,
+            }],
             propierties: vec![],
         };
 
@@ -2494,6 +2514,16 @@ mod tests {
             json!({"value": {"text": "info", "value": 30}})
         );
 
+        assert_eq!(result.state.unit_process[0].inputs.len(), 1);
+
+        let data = result.state.unit_process[0].inputs[0].clone();
+        assert_eq!(data.name, "Example Vec");
+        assert_eq!(data.type_name, "UserVec");
+        assert_eq!(
+            data.content,
+            json!({"value": ["one", "two"]})
+        );
+
         assert!(result.success);
     }
 
@@ -2509,33 +2539,6 @@ mod tests {
             custom_types: HashMap::new(),
             propierties: vec![],
         };
-
-        let context = sdk::Context {
-            event: Events::ChangeProductionSystem(ChangeProductionSystem::ModifyTypes {
-                delete: None,
-                add: Some(vec![
-                    (
-                        "DataType".to_owned(),
-                        Fields::Basic(Box::new(DynamicType::String)),
-                    ),
-                    (
-                        "UserObject".to_owned(),
-                        Fields::Object(HashMap::from([(
-                            "value".to_owned(),
-                            DynamicType::Type("DataType".to_owned()),
-                        )])),
-                    ),
-                ]),
-            }),
-            is_owner: false,
-        };
-
-        let mut result = sdk::ContractResult::new(init_state.clone());
-
-        contract_logic(&context, &mut result);
-
-        assert!(!result.error.is_empty());
-        assert!(!result.success);
 
         ////////////////////////////////////////////////////////////////
         // Unit process
