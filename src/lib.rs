@@ -667,13 +667,13 @@ impl Propierties {
 struct Data {
     pub name: String,
     pub type_name: String,
-    pub help: Option<Help>,
+    pub metadata: Option<Metadata>,
     pub content: Value,
     pub targets: Option<Vec<Target>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-struct Help {
+struct Metadata {
     pub type_name: String,
     pub content: Value,
 }
@@ -683,7 +683,7 @@ impl From<RegisterData> for Data {
         Data {
             name: value.name,
             type_name: value.type_name,
-            help: None,
+            metadata: None,
             content: value.content,
             targets: value.targets,
         }
@@ -708,8 +708,8 @@ impl Data {
             return Err("Element name can not be empty".to_owned());
         }
 
-        if let Some(help) = self.help.clone() {
-            check_data(&help.type_name, help.content.clone(), custom_types)?;
+        if let Some(metadata) = self.metadata.clone() {
+            check_data(&metadata.type_name, metadata.content.clone(), custom_types)?;
         };
 
         check_data(&self.type_name, self.content.clone(), custom_types)
@@ -1072,7 +1072,7 @@ mod tests {
     use std::{collections::HashMap, vec};
 
     use crate::{
-        contract_logic, ChangeProductionSystem, Data, DynamicType, Events, Fields, Help, ProductionSystem, Propierties, RegisterData, Target, UnitData, UnitProcess
+        contract_logic, ChangeProductionSystem, Data, DynamicType, Events, Fields, Metadata, ProductionSystem, Propierties, RegisterData, Target, UnitData, UnitProcess
     };
     use kore_contract_sdk as sdk;
     use serde_json::json;
@@ -1122,14 +1122,14 @@ mod tests {
 
     impl Eq for Data {}
 
-    impl PartialEq for Help {
+    impl PartialEq for Metadata {
         fn eq(&self, other: &Self) -> bool {
             self.type_name == other.type_name
                 && self.content == other.content
         }
     }
 
-    impl Eq for Help {}
+    impl Eq for Metadata {}
 
 
     impl PartialEq for Target {
@@ -1221,7 +1221,7 @@ mod tests {
     }
 
         #[test]
-    fn test_help_field() {
+    fn test_metadata_field() {
         ////////////////////////////////////////////////////////////////
         // Type definition
         ////////////////////////////////////////////////////////////////
@@ -1276,14 +1276,14 @@ mod tests {
                     type_name: "UserObject".to_owned(),
                     content: json!({"name": "ExampleName"}),
                     targets: None,
-                    help: None,
+                    metadata: None,
                 },
                 Data {
                     name: "Example String".to_owned(),
                     type_name: "String".to_owned(),
                     content: json!("ExampleString"),
                     targets: None,
-                    help: None,
+                    metadata: None,
                 },
             ],
             inputs: vec![Data {
@@ -1291,7 +1291,7 @@ mod tests {
                 type_name: "UserBasic".to_owned(),
                 content: json!("ExampleBasic"),
                 targets: None,
-                help: Some(Help { type_name: "UserObject".to_owned(), content: json!({"name": "Help"}) }),
+                metadata: Some(Metadata { type_name: "UserObject".to_owned(), content: json!({"name": "Metadata"}) }),
             }],
             propierties: vec![],
         };
@@ -1328,7 +1328,7 @@ mod tests {
         assert_eq!(data.name, "Example Basic");
         assert_eq!(data.type_name, "UserBasic");
         assert_eq!(data.content, json!("ExampleBasic"));
-        assert_eq!(data.help.unwrap(), Help { type_name: "UserObject".to_owned(), content: json!({"name": "Help"}) });
+        assert_eq!(data.metadata.unwrap(), Metadata { type_name: "UserObject".to_owned(), content: json!({"name": "Metadata"}) });
 
         assert!(result.success);
     }
@@ -1389,14 +1389,14 @@ mod tests {
                     type_name: "UserObject".to_owned(),
                     content: json!({"name": "ExampleName"}),
                     targets: None,
-                    help: None,
+                    metadata: None,
                 },
                 Data {
                     name: "Example String".to_owned(),
                     type_name: "String".to_owned(),
                     content: json!("ExampleString"),
                     targets: None,
-                    help: None,
+                    metadata: None,
                 },
             ],
             inputs: vec![Data {
@@ -1404,7 +1404,7 @@ mod tests {
                 type_name: "UserBasic".to_owned(),
                 content: json!("ExampleBasic"),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             propierties: vec![],
         };
@@ -1501,14 +1501,14 @@ mod tests {
                     type_name: "UserObject".to_owned(),
                     content: json!({"value": -5}),
                     targets: None,
-                    help: None,
+                    metadata: None,
                 },
                 Data {
                     name: "Example i64".to_owned(),
                     type_name: "i64".to_owned(),
                     content: json!(21412),
                     targets: None,
-                    help: None,
+                    metadata: None,
                 },
             ],
             inputs: vec![Data {
@@ -1516,7 +1516,7 @@ mod tests {
                 type_name: "UserBasic".to_owned(),
                 content: json!(-132),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             propierties: vec![],
         };
@@ -1613,14 +1613,14 @@ mod tests {
                     type_name: "UserObject".to_owned(),
                     content: json!({"value": 0}),
                     targets: None,
-                    help: None,
+                    metadata: None,
                 },
                 Data {
                     name: "Example u64".to_owned(),
                     type_name: "u64".to_owned(),
                     content: json!(21412),
                     targets: None,
-                    help: None,
+                    metadata: None,
                 },
             ],
             inputs: vec![Data {
@@ -1628,7 +1628,7 @@ mod tests {
                 type_name: "UserBasic".to_owned(),
                 content: json!(132),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             propierties: vec![],
         };
@@ -1725,14 +1725,14 @@ mod tests {
                     type_name: "UserObject".to_owned(),
                     content: json!({"value": 0}),
                     targets: None,
-                    help: None,
+                    metadata: None,
                 },
                 Data {
                     name: "Example f64".to_owned(),
                     type_name: "f64".to_owned(),
                     content: json!(21412.0),
                     targets: None,
-                    help: None,
+                    metadata: None,
                 },
             ],
             inputs: vec![Data {
@@ -1740,7 +1740,7 @@ mod tests {
                 type_name: "UserBasic".to_owned(),
                 content: json!(-132.55),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             propierties: vec![],
         };
@@ -1837,14 +1837,14 @@ mod tests {
                     type_name: "UserObject".to_owned(),
                     content: json!({"value": false}),
                     targets: None,
-                    help: None,
+                    metadata: None,
                 },
                 Data {
                     name: "Example bool".to_owned(),
                     type_name: "bool".to_owned(),
                     content: json!(true),
                     targets: None,
-                    help: None,
+                    metadata: None,
                 },
             ],
             inputs: vec![Data {
@@ -1852,7 +1852,7 @@ mod tests {
                 type_name: "UserBasic".to_owned(),
                 content: json!(false),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             propierties: vec![],
         };
@@ -1952,7 +1952,7 @@ mod tests {
                 type_name: "Dummy".to_owned(),
                 content: json!({}),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             inputs: vec![],
             propierties: vec![],
@@ -2036,7 +2036,7 @@ mod tests {
                 type_name: "Option".to_owned(),
                 content: json!({}),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             inputs: vec![],
             propierties: vec![],
@@ -2132,14 +2132,14 @@ mod tests {
                 type_name: "UserObject".to_owned(),
                 content: json!({"value": {"Data": "info"}}),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             inputs: vec![Data {
                 name: "Example Basic".to_owned(),
                 type_name: "UserBasic".to_owned(),
                 content: json!("Name"),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             propierties: vec![],
         };
@@ -2295,7 +2295,7 @@ mod tests {
                 type_name: "Enum".to_owned(),
                 content: json!({}),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             inputs: vec![],
             propierties: vec![],
@@ -2379,14 +2379,14 @@ mod tests {
                 type_name: "UserObject".to_owned(),
                 content: json!({"value": ["one", "two"]}),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             inputs: vec![Data {
                 name: "Example Basic".to_owned(),
                 type_name: "UserBasic".to_owned(),
                 content: json!([0, 1, 2, 3, 4, 5]),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             propierties: vec![],
         };
@@ -2539,7 +2539,7 @@ mod tests {
                 type_name: "Vec".to_owned(),
                 content: json!([]),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             inputs: vec![],
             propierties: vec![],
@@ -2650,14 +2650,14 @@ mod tests {
                 type_name: "UserObject".to_owned(),
                 content: json!({"value": {"text": "info", "value": 30}}),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             inputs: vec![Data {
                 name: "Example Vec".to_owned(),
                 type_name: "UserVec".to_owned(),
                 content: json!({"value": ["one", "two"]}),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             propierties: vec![],
         };
@@ -2722,7 +2722,7 @@ mod tests {
                 type_name: "Type".to_owned(),
                 content: json!({}),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             inputs: vec![],
             propierties: vec![],
@@ -2793,14 +2793,14 @@ mod tests {
                         type_name: "UserObject".to_owned(),
                         content: json!({"name": "ExampleName"}),
                         targets: None,
-                        help: None,
+                        metadata: None,
                     }],
                     inputs: vec![Data {
                         name: "Example Basic".to_owned(),
                         type_name: "UserBasic".to_owned(),
                         content: json!("ExampleBasic"),
                         targets: None,
-                        help: None,
+                        metadata: None,
                     }],
                     propierties: vec![Propierties {
                         name: "Example String".to_owned(),
@@ -2851,14 +2851,14 @@ mod tests {
                     type_name: "UserObject".to_owned(),
                     content: json!({"name": "ExampleName"}),
                     targets: None,
-                    help: None
+                    metadata: None
                 },],
                 inputs: vec![Data {
                     name: "Example Basic".to_owned(),
                     type_name: "UserBasic".to_owned(),
                     content: json!("ExampleBasic"),
                     targets: None,
-                    help: None
+                    metadata: None
                 }],
                 propierties: vec![Propierties {
                     name: "Example String".to_owned(),
@@ -2934,14 +2934,14 @@ mod tests {
                     type_name: "UserObject".to_owned(),
                     content: json!({"name": "ExampleName"}),
                     targets: None,
-                    help: None,
+                    metadata: None,
                 },
                 Data {
                     name: "Example String".to_owned(),
                     type_name: "String".to_owned(),
                     content: json!("ExampleString"),
                     targets: None,
-                    help: None,
+                    metadata: None,
                 },
             ],
             inputs: vec![Data {
@@ -2949,7 +2949,7 @@ mod tests {
                 type_name: "UserBasic".to_owned(),
                 content: json!("ExampleBasic"),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             propierties: vec![],
         };
@@ -2999,14 +2999,14 @@ mod tests {
                 type_name: "UserBasic".to_owned(),
                 content: json!("ExampleBasic"),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             inputs: vec![Data {
                 name: "Example Object modify".to_owned(),
                 type_name: "UserObject".to_owned(),
                 content: json!({"name": "ExampleName"}),
                 targets: None,
-                help: None,
+                metadata: None,
             }],
             propierties: vec![],
         };
