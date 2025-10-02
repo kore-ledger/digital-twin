@@ -50,7 +50,10 @@ fn check_cycle(cycle_types: HashMap<String, Vec<String>>) -> Result<(), String> 
         if !visited.contains(type_name)
             && has_cycle(type_name, &cycle_types, &mut visited, &mut stack)
         {
-            return Err(format!("A Cycle is detected in {} type", type_name));
+            return Err(format!(
+                "Check error: Circular dependency detected in type '{}'. Types cannot reference themselves directly or indirectly.",
+                type_name
+            ));
         }
     }
 
@@ -59,7 +62,7 @@ fn check_cycle(cycle_types: HashMap<String, Vec<String>>) -> Result<(), String> 
 
 fn add_types(state: &mut ProductionSystem, types: Vec<(String, Fields)>) -> Result<(), String> {
     if types.is_empty() {
-        return Err("Types can not be a empty Vec".to_owned());
+        return Err("Check error: Cannot add types. The 'types' parameter must contain at least one type definition.".to_owned());
     }
 
     let mut temporal_types: HashMap<String, Fields> = state.custom_types.clone();
@@ -72,12 +75,15 @@ fn add_types(state: &mut ProductionSystem, types: Vec<(String, Fields)>) -> Resu
 
     for (name, fields) in temporal_types.clone() {
         if name.is_empty() {
-            return Err("Type name can not be empty".to_owned());
+            return Err("Check error: Type name cannot be empty. Please provide a valid type name.".to_owned());
         }
         match name.as_str() {
             "String" | "bool" | "i64" | "f64" | "u64" | "Dummy" | "Option" | "Enum" | "Type"
             | "Vec" => {
-                return Err(format!("The type name is reserved, name: {}", name));
+                return Err(format!(
+                    "Check error: The type name '{}' is reserved and cannot be used. Reserved names are: String, bool, i64, f64, u64, Dummy, Option, Enum, Type, Vec.",
+                    name
+                ));
             }
             _ => {}
         }
@@ -95,7 +101,7 @@ fn add_types(state: &mut ProductionSystem, types: Vec<(String, Fields)>) -> Resu
 
 fn add_unit_process(state: &mut ProductionSystem, add: Vec<UnitProcess>) -> Result<(), String> {
     if add.is_empty() {
-        return Err("Unit process can not be a empty Vec".to_owned());
+        return Err("Check error: Cannot add unit processes. The 'add' parameter must contain at least one unit process definition.".to_owned());
     }
 
     for unit_process in add {
@@ -111,34 +117,34 @@ fn add_unit_process(state: &mut ProductionSystem, add: Vec<UnitProcess>) -> Resu
     let hash_unit_name: HashSet<String> = HashSet::from_iter(unit_names.iter().cloned());
 
     if hash_unit_name.len() != unit_names.len() {
-        return Err("Units procces has not uniques names".to_owned());
+        return Err("Check error: Duplicate unit process names detected. Each unit process must have a unique name.".to_owned());
     }
 
     Ok(())
 }
 
-fn add_new_propierties(
+fn add_new_properties(
     state: &mut ProductionSystem,
-    propierties: Vec<Propierties>,
+    properties: Vec<Properties>,
 ) -> Result<(), String> {
-    if propierties.is_empty() {
-        return Err("Porduction system add propierties can not be a empty Vec".to_owned());
+    if properties.is_empty() {
+        return Err("Check error: Cannot add properties. The 'properties' parameter must contain at least one property definition.".to_owned());
     }
-    for pro in propierties.clone() {
+    for pro in properties.clone() {
         pro.check_data(&state.custom_types)?;
-        state.propierties.push(pro);
+        state.properties.push(pro);
     }
 
-    let propierties_names = state
-        .propierties
+    let properties_names = state
+        .properties
         .iter()
         .map(|x| x.name.clone())
         .collect::<Vec<String>>();
-    let hash_propierties_names: HashSet<String> =
-        HashSet::from_iter(propierties_names.iter().cloned());
+    let hash_properties_names: HashSet<String> =
+        HashSet::from_iter(properties_names.iter().cloned());
 
-    if hash_propierties_names.len() != propierties_names.len() {
-        return Err("Units procces has not uniques names".to_owned());
+    if hash_properties_names.len() != properties_names.len() {
+        return Err("Check error: Duplicate property names detected. Each property must have a unique name.".to_owned());
     }
 
     Ok(())
@@ -150,7 +156,7 @@ fn check_data(
     custom_types: &HashMap<String, Fields>,
 ) -> Result<(), String> {
     if type_name.is_empty() {
-        return Err("Element type name can not be empty".to_owned());
+        return Err("Check error: Type name cannot be empty. Please provide a valid type name for the element.".to_owned());
     }
 
     if let Some(dynamic_type) = custom_types.get(type_name) {
@@ -162,7 +168,7 @@ fn check_data(
             "u64" => DynamicType::u64.deserialize(content, custom_types),
             "f64" => DynamicType::f64.deserialize(content, custom_types),
             "bool" => DynamicType::bool.deserialize(content, custom_types),
-            _ => Err("Element type name can not be empty".to_owned()),
+            _ => Err(format!("Check error: Unknown type name '{}'. The type must be either a built-in type (String, i64, u64, f64, bool) or a custom type defined in the schema.", type_name)),
         }
     }
 }
@@ -176,11 +182,17 @@ fn register_data(
     content: Value,
 ) -> Result<(), String> {
     if local_name != name {
-        return Err("Data name is not the same".to_owned());
+        return Err(format!(
+            "Check error: Name mismatch. Expected name '{}' but received '{}'. The data name must match the expected name.",
+            local_name, name
+        ));
     }
 
     if local_type_name != type_name {
-        return Err("Data type is not the same".to_owned());
+        return Err(format!(
+            "Check error: Type mismatch. Expected type '{}' but received '{}'. The data type must match the expected type.",
+            local_type_name, type_name
+        ));
     }
 
     if let Some(c_type) = custom_types.get(local_type_name) {
@@ -192,7 +204,7 @@ fn register_data(
             "u64" => DynamicType::u64.deserialize(content, custom_types)?,
             "f64" => DynamicType::f64.deserialize(content, custom_types)?,
             "bool" => DynamicType::bool.deserialize(content, custom_types)?,
-            _ => return Err("Element type name can not be empty".to_owned()),
+            _ => return Err(format!("Check error: Unknown type name '{}'. The type must be either a built-in type (String, i64, u64, f64, bool) or a custom type defined in the schema.", local_type_name)),
         };
     };
 
@@ -205,7 +217,7 @@ struct ProductionSystem {
     pub custom_types: HashMap<String, Fields>,
     pub version: u32,
     pub unit_process: Vec<UnitProcess>,
-    pub propierties: Vec<Propierties>,
+    pub properties: Vec<Properties>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -223,22 +235,22 @@ impl Fields {
                 if let DynamicType::Dummy | DynamicType::Option(..) | DynamicType::Type(..) =
                     **dynamic_type
                 {
-                    return Err("Basic type can not be Dummy, Option or Type".to_owned());
+                    return Err("Check error: Invalid basic type. A 'Basic' field cannot be Dummy, Option, or Type. Use 'Object' for complex types or specify a concrete type.".to_owned());
                 }
 
                 dynamic_type.check_data(custom_types.clone(), &mut internal_types)?;
             }
             Fields::Object(hash_map) => {
                 if hash_map.is_empty() {
-                    return Err("Fields can not be empty".to_owned());
+                    return Err("Check error: Object fields cannot be empty. An object type must contain at least one field.".to_owned());
                 }
 
                 for (field, c_type) in hash_map.iter() {
                     if let DynamicType::Dummy = c_type {
-                        return Err("Object type can not be Dummy".to_owned());
+                        return Err(format!("Check error: Field '{}' has invalid type. Object fields cannot be of type 'Dummy'. Please specify a concrete type.", field));
                     }
                     if field.is_empty() {
-                        return Err("Field can not be empty".to_owned());
+                        return Err("Check error: Field name cannot be empty. All object fields must have a non-empty name.".to_owned());
                     }
 
                     c_type.check_data(custom_types.clone(), &mut internal_types)?;
@@ -260,12 +272,15 @@ impl Fields {
             }
             Fields::Object(hash_map) => {
                 let Some(mut data_object) = data.as_object().cloned() else {
-                    return Err("Data can not convert in Object".to_owned());
+                    return Err("Check error: Type mismatch. Expected an object but received a different type. The data must be a JSON object.".to_owned());
                 };
 
                 let (len, options) = count_options(hash_map);
                 if data_object.len() < len - options || data_object.len() > len {
-                    return Err("Data fields and type fields is not the same".to_owned());
+                    return Err(format!(
+                        "Check error: Field count mismatch. Expected between {} and {} fields but received {}. The data object must match the type definition.",
+                        len - options, len, data_object.len()
+                    ));
                 }
 
                 for (custom_type_name, custom_type_type) in hash_map.clone() {
@@ -273,14 +288,18 @@ impl Fields {
                         custom_type_type.deserialize(field_type, custom_types)?;
                     } else if !custom_type_type.is_option() {
                         return Err(format!(
-                            "A field in type do not exist in data: {}",
+                            "Check error: Missing required field '{}'. This field is required by the type definition and cannot be omitted.",
                             custom_type_name
                         ));
                     };
                 }
 
                 if !data_object.is_empty() {
-                    return Err("Data has more fields than type".to_owned());
+                    let extra_fields: Vec<String> = data_object.keys().cloned().collect();
+                    return Err(format!(
+                        "Check error: Unexpected fields found: {:?}. These fields are not defined in the type schema and should be removed.",
+                        extra_fields
+                    ));
                 }
             }
         }
@@ -317,32 +336,32 @@ impl DynamicType {
         match self {
             DynamicType::String => {
                 if value.as_str().is_none() {
-                    return Err("Can not deserialize Value as String".to_owned());
+                    return Err(format!("Deserialization error: Expected a String but received '{}'. Please provide a valid string value.", value));
                 }
             }
             DynamicType::u64 => {
                 if value.as_u64().is_none() {
-                    return Err("Can not deserialize Value as u64".to_owned());
+                    return Err(format!("Deserialization error: Expected an unsigned 64-bit integer (u64) but received '{}'. Please provide a valid non-negative integer.", value));
                 }
             }
             DynamicType::f64 => {
                 if value.as_f64().is_none() {
-                    return Err("Can not deserialize Value as f64".to_owned());
+                    return Err(format!("Deserialization error: Expected a 64-bit floating point number (f64) but received '{}'. Please provide a valid decimal number.", value));
                 }
             }
             DynamicType::i64 => {
                 if value.as_i64().is_none() {
-                    return Err("Can not deserialize Value as i64".to_owned());
+                    return Err(format!("Deserialization error: Expected a signed 64-bit integer (i64) but received '{}'. Please provide a valid integer.", value));
                 }
             }
             DynamicType::bool => {
                 if value.as_bool().is_none() {
-                    return Err("Can not deserialize Value as bool".to_owned());
+                    return Err(format!("Deserialization error: Expected a boolean (true/false) but received '{}'. Please provide a valid boolean value.", value));
                 }
             }
             DynamicType::Vec(vec_type) => {
                 let Some(vec_dynamic) = value.as_array() else {
-                    return Err("Can not deserialize Value as Vec".to_owned());
+                    return Err(format!("Deserialization error: Expected an array but received '{}'. Please provide a valid JSON array.", value));
                 };
                 for val in vec_dynamic.clone() {
                     vec_type.deserialize(val, custom_types)?;
@@ -351,14 +370,18 @@ impl DynamicType {
             DynamicType::Enum(enum_type) => {
                 if let Some(obj_dynamic) = value.as_object().cloned() {
                     if obj_dynamic.len() != 1 {
-                        return Err(
-                            "Can not deserialize, in Enum Object must have one field".to_owned()
-                        );
+                        return Err(format!(
+                            "Deserialization error: Invalid enum object. Expected exactly one field but received {}. Enum values must be represented as a single-field object.",
+                            obj_dynamic.len()
+                        ));
                     }
 
                     for (value_name, value_val) in obj_dynamic {
                         let Some(type_dyn) = enum_type.get(&value_name) else {
-                            return Err("Can not deserialize, Value does not match enum".to_owned());
+                            return Err(format!(
+                                "Deserialization error: Unknown enum variant '{}'. Valid variants are: {:?}",
+                                value_name, enum_type.keys().collect::<Vec<_>>()
+                            ));
                         };
 
                         type_dyn.deserialize(value_val, custom_types)?;
@@ -367,16 +390,19 @@ impl DynamicType {
                     if let Some(DynamicType::Dummy) = enum_type.get(obj_dynamic) {
                         // Ok
                     } else {
-                        return Err("Can not deserialize, Value does not match enum".to_owned());
+                        return Err(format!(
+                            "Deserialization error: Unknown enum variant '{}'. Valid variants are: {:?}",
+                            obj_dynamic, enum_type.keys().collect::<Vec<_>>()
+                        ));
                     }
                 } else {
-                    return Err("Can not deserialize Value as Enum".to_owned());
+                    return Err(format!("Deserialization error: Cannot deserialize value '{}' as Enum. Enum values must be either a single-field object or a string (for variants without data).", value));
                 };
             }
             DynamicType::Type(c_type) => {
                 let Some(obj_type) = custom_types.get(c_type) else {
                     return Err(format!(
-                        "Can not deserialize, Custom type {} does not exist",
+                        "Deserialization error: Custom type '{}' is not defined in the schema. Please ensure the type is defined before using it.",
                         c_type
                     ));
                 };
@@ -387,15 +413,15 @@ impl DynamicType {
                     }
                     Fields::Object(hash_map) => {
                         let Some(mut obj_dynamic) = value.as_object().cloned() else {
-                            return Err("Can not deserialize Value as Object".to_owned());
+                            return Err(format!("Deserialization error: Expected an object for custom type '{}' but received '{}'. Please provide a valid JSON object.", c_type, value));
                         };
 
                         let (len, options) = count_options(hash_map);
                         if obj_dynamic.len() < len - options || obj_dynamic.len() > len {
-                            return Err(
-                                "Can not deserialize, Value has diferents fields than Object"
-                                    .to_owned(),
-                            );
+                            return Err(format!(
+                                "Deserialization error: Field count mismatch for custom type '{}'. Expected between {} and {} fields but received {}. Please check the type definition.",
+                                c_type, len - options, len, obj_dynamic.len()
+                            ));
                         }
 
                         for (type_field, type_dyn) in hash_map.clone() {
@@ -403,16 +429,18 @@ impl DynamicType {
                                 type_dyn.deserialize(value, custom_types)?;
                             } else if !type_dyn.is_option() {
                                 return Err(format!(
-                                    "Can not deserialize, Value has not {} field",
-                                    type_field
+                                    "Deserialization error: Missing required field '{}' in custom type '{}'. This field is required and cannot be omitted.",
+                                    type_field, c_type
                                 ));
                             };
                         }
 
                         if !obj_dynamic.is_empty() {
-                            return Err(
-                                "Can not deserialize, Value has more fields than Type".to_owned()
-                            );
+                            let extra_fields: Vec<String> = obj_dynamic.keys().cloned().collect();
+                            return Err(format!(
+                                "Deserialization error: Unexpected fields {:?} found in custom type '{}'. These fields are not defined in the type schema.",
+                                extra_fields, c_type
+                            ));
                         }
                     }
                 };
@@ -425,7 +453,7 @@ impl DynamicType {
                 }
             }
             DynamicType::Dummy => {
-                return Err("Invalid Dummy type".to_owned());
+                return Err("Check error: Dummy type encountered during deserialization. Dummy types are placeholders and cannot be used for actual data.".to_owned());
             }
         }
 
@@ -440,18 +468,18 @@ impl DynamicType {
         match self {
             DynamicType::Vec(c_type) | DynamicType::Option(c_type) => {
                 if let DynamicType::Dummy | DynamicType::Option(..) = **c_type {
-                    return Err("Vec or Option type can not be Dummy or Option".to_owned());
+                    return Err("Check error: Invalid nested type. Vec and Option types cannot contain Dummy or nested Option types. Please use a concrete type.".to_owned());
                 }
                 c_type.check_data(custom_types, internal_types)?;
             }
             DynamicType::Enum(enum_type) => {
                 for (type_field, type_dyn) in enum_type.clone() {
                     if type_field.is_empty() {
-                        return Err("Field can not be empty".to_owned());
+                        return Err("Check error: Enum variant name cannot be empty. All enum variants must have a non-empty name.".to_owned());
                     }
 
                     if let DynamicType::Option(..) = type_dyn {
-                        return Err("In Enum a field can not be option".to_owned());
+                        return Err(format!("Check error: Enum variant '{}' cannot be of type Option. Use a unit variant (Dummy) for variants without data instead.", type_field));
                     }
 
                     type_dyn.check_data(custom_types.clone(), internal_types)?;
@@ -459,11 +487,11 @@ impl DynamicType {
             }
             DynamicType::Type(c_type) => {
                 if c_type.is_empty() {
-                    return Err("Custom type con not be empty".to_string());
+                    return Err("Check error: Custom type name cannot be empty. Please provide a valid type name.".to_string());
                 }
 
                 if !custom_types.contains_key(c_type) {
-                    return Err(format!("Type {} does not exist", c_type));
+                    return Err(format!("Check error: Custom type '{}' is not defined. Please ensure the type is defined before referencing it.", c_type));
                 }
 
                 internal_types.push(c_type.clone());
@@ -480,7 +508,7 @@ struct UnitData {
     pub name: String,
     pub outputs: Option<Vec<RegisterData>>,
     pub inputs: Option<Vec<RegisterData>>,
-    pub propierties: Option<Vec<Propierties>>,
+    pub properties: Option<Vec<Properties>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -488,13 +516,13 @@ struct UnitProcess {
     pub name: String,
     pub inputs: Vec<Data>,
     pub outputs: Vec<Data>,
-    pub propierties: Vec<Propierties>,
+    pub properties: Vec<Properties>,
 }
 
 impl UnitProcess {
     pub fn check_data(&self, custom_types: &HashMap<String, Fields>) -> Result<(), String> {
         if self.name.is_empty() {
-            return Err("Unit process name can not be empty".to_owned());
+            return Err("Check error: Unit process name cannot be empty. Please provide a valid name for the unit process.".to_owned());
         }
 
         let mut names = vec![];
@@ -512,22 +540,31 @@ impl UnitProcess {
         let hash_name: HashSet<String> = HashSet::from_iter(names.iter().cloned());
 
         if hash_name.len() != self.outputs.len() + self.inputs.len() {
-            return Err("Inputs and outputs has not unique names".to_owned());
+            return Err(format!(
+                "Check error: Duplicate names detected in unit process '{}'. Input and output names must be unique across both lists.",
+                self.name
+            ));
         }
 
-        let mut propierties_name = vec![];
-        for p in self.propierties.iter() {
+        let mut properties_name = vec![];
+        for p in self.properties.iter() {
             p.check_data(custom_types)?;
-            propierties_name.push(p.name.clone());
+            properties_name.push(p.name.clone());
         }
 
-        let hash_pro_name: HashSet<String> = HashSet::from_iter(propierties_name.iter().cloned());
+        let hash_pro_name: HashSet<String> = HashSet::from_iter(properties_name.iter().cloned());
         if hash_name.len() != self.outputs.len() + self.inputs.len() {
-            return Err("Inputs and outputs has not unique names".to_owned());
+            return Err(format!(
+                "Check error: Duplicate names detected in unit process '{}'. Input and output names must be unique across both lists.",
+                self.name
+            ));
         }
 
-        if hash_pro_name.len() != self.propierties.len() {
-            return Err("Propierties has not unique names".to_owned());
+        if hash_pro_name.len() != self.properties.len() {
+            return Err(format!(
+                "Check error: Duplicate property names detected in unit process '{}'. Each property must have a unique name.",
+                self.name
+            ));
         }
 
         Ok(())
@@ -539,12 +576,18 @@ impl UnitProcess {
         custom_types: &HashMap<String, Fields>,
     ) -> Result<(), String> {
         if unit.inputs.is_none() && unit.outputs.is_none() {
-            return Err("Inputs and outputs are empty".to_owned());
+            return Err(format!(
+                "Check error: Cannot register data for unit '{}'. At least one of 'inputs' or 'outputs' must be provided.",
+                unit.name
+            ));
         }
 
         if let Some(inputs) = unit.inputs {
             if inputs.is_empty() {
-                return Err("Inputs can not be Some and be empty".to_owned());
+                return Err(format!(
+                    "Check error: Empty inputs array for unit '{}'. If 'inputs' is provided, it must contain at least one input definition.",
+                    unit.name
+                ));
             }
 
             let mut updates: usize = 0;
@@ -560,16 +603,20 @@ impl UnitProcess {
             }
 
             if updates != inputs.len() {
-                return Err(
-                    "An attempt was made to update inputs that do not exist in the unit process"
-                        .to_owned(),
-                );
+                let unmatched = inputs.len() - updates;
+                return Err(format!(
+                    "Check error: Failed to update {} input(s) in unit process '{}'. {} input name(s) do not match any defined inputs in the unit process.",
+                    unmatched, self.name, unmatched
+                ));
             }
         }
 
         if let Some(outputs) = unit.outputs {
             if outputs.is_empty() {
-                return Err("outputs can not be Some and be empty".to_owned());
+                return Err(format!(
+                    "Check error: Empty outputs array for unit '{}'. If 'outputs' is provided, it must contain at least one output definition.",
+                    unit.name
+                ));
             }
 
             let mut updates: usize = 0;
@@ -585,22 +632,26 @@ impl UnitProcess {
             }
 
             if updates != outputs.len() {
-                return Err(
-                    "An attempt was made to update Outputs that do not exist in the unit process"
-                        .to_owned(),
-                );
+                let unmatched = outputs.len() - updates;
+                return Err(format!(
+                    "Check error: Failed to update {} output(s) in unit process '{}'. {} output name(s) do not match any defined outputs in the unit process.",
+                    unmatched, self.name, unmatched
+                ));
             }
         }
 
-        if let Some(propierties) = unit.propierties {
-            if propierties.is_empty() {
-                return Err("propierties can not be Some and be empty".to_owned());
+        if let Some(properties) = unit.properties {
+            if properties.is_empty() {
+                return Err(format!(
+                    "Check error: Empty properties array for unit '{}'. If 'properties' is provided, it must contain at least one property definition.",
+                    unit.name
+                ));
             }
 
             let mut updates: usize = 0;
 
-            for data in self.propierties.iter_mut() {
-                for unit_data in propierties.clone() {
+            for data in self.properties.iter_mut() {
+                for unit_data in properties.clone() {
                     if data.name == unit_data.name {
                         data.register_data(unit_data, custom_types)?;
                         updates += 1;
@@ -608,11 +659,12 @@ impl UnitProcess {
                 }
             }
 
-            if updates != propierties.len() {
-                return Err(
-                    "An attempt was made to update propierties that do not exist in the unit process"
-                        .to_owned(),
-                );
+            if updates != properties.len() {
+                let unmatched = properties.len() - updates;
+                return Err(format!(
+                    "Check error: Failed to update {} propert(y/ies) in unit process '{}'. {} property name(s) do not match any defined properties in the unit process.",
+                    unmatched, self.name, unmatched
+                ));
             }
         }
 
@@ -628,16 +680,16 @@ struct Target {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-struct Propierties {
+struct Properties {
     pub name: String,
     pub type_name: String,
     pub content: Value,
 }
 
-impl Propierties {
+impl Properties {
     fn check_data(&self, custom_types: &HashMap<String, Fields>) -> Result<(), String> {
         if self.name.is_empty() {
-            return Err("Element name can not be empty".to_owned());
+            return Err("Check error: Property name cannot be empty. Please provide a valid name for the property.".to_owned());
         }
 
         check_data(&self.type_name, self.content.clone(), custom_types)
@@ -701,11 +753,14 @@ struct RegisterData {
 impl Data {
     fn check_data(&self, custom_types: &HashMap<String, Fields>) -> Result<(), String> {
         if self.targets.is_some() {
-            return Err("In unit process definition targets must be None".to_owned());
+            return Err(format!(
+                "Check error: Targets must not be set in unit process definition for element '{}'. Targets are only valid when registering data.",
+                self.name
+            ));
         }
 
         if self.name.is_empty() {
-            return Err("Element name can not be empty".to_owned());
+            return Err("Check error: Data element name cannot be empty. Please provide a valid name for the data element.".to_owned());
         }
 
         if let Some(metadata) = self.metadata.clone() {
@@ -735,7 +790,10 @@ impl Data {
                     || t.subject_id.is_empty()
                     || t.unit_process.is_empty()
                 {
-                    return Err("In Data Target governance_id, subject_id and unit_procees can not be empty".to_owned());
+                    return Err(format!(
+                        "Check error: Invalid target configuration for data element '{}'. All target fields (governance_id, subject_id, unit_process) must be non-empty.",
+                        self.name
+                    ));
                 }
             }
         }
@@ -759,16 +817,14 @@ enum ChangeProductionSystem {
         name: String,
         unit_process: Option<Vec<UnitProcess>>,
         types: Option<Vec<(String, Fields)>>,
-        propierties: Option<Vec<Propierties>>,
+        properties: Option<Vec<Properties>>,
     },
-    // TODO REHACER
     ModifyProductionSystem {
         name: Option<String>,
-        delete_propierties: Option<Vec<String>>,
-        modify_propierties: Option<Vec<(String, Propierties)>>,
-        add_propierties: Option<Vec<Propierties>>,
+        delete_properties: Option<Vec<String>>,
+        modify_properties: Option<Vec<(String, Properties)>>,
+        add_properties: Option<Vec<Properties>>,
     },
-    // TODO HACER UNO DONDE SE BORRE
     ModifyTypes {
         delete: Option<Vec<String>>,
         add: Option<Vec<(String, Fields)>>,
@@ -813,11 +869,11 @@ fn contract_logic(
 
     if let Events::ChangeProductionSystem(ChangeProductionSystem::Init { .. }) = context.event {
         if state.version != 0 {
-            contract_result.error = "Can not emit init event if version is != 0".to_owned();
+            contract_result.error = "Contract error: Cannot emit Init event when version is not 0. The Init event can only be used to initialize a new contract (version must be 0).".to_owned();
             return;
         }
     } else if state.version == 0 {
-        contract_result.error = "The first event must be Init event".to_owned();
+        contract_result.error = "Contract error: The first event must be an Init event. Please initialize the contract with an Init event before performing other operations.".to_owned();
         return;
     }
 
@@ -830,11 +886,11 @@ fn contract_logic(
             ChangeProductionSystem::Init {
                 name,
                 unit_process,
-                propierties,
+                properties,
                 types,
             } => {
                 if name.is_empty() {
-                    contract_result.error = "System name can not be empty".to_owned();
+                    contract_result.error = "Init error: Production system name cannot be empty. Please provide a valid name for the production system.".to_owned();
                     return;
                 }
 
@@ -854,8 +910,8 @@ fn contract_logic(
                     }
                 }
 
-                if let Some(propierties) = propierties {
-                    if let Err(e) = add_new_propierties(state, propierties) {
+                if let Some(properties) = properties {
+                    if let Err(e) = add_new_properties(state, properties) {
                         contract_result.error = e;
                         return;
                     }
@@ -863,42 +919,40 @@ fn contract_logic(
             }
             ChangeProductionSystem::ModifyProductionSystem {
                 name,
-                delete_propierties,
-                add_propierties,
-                modify_propierties,
+                delete_properties,
+                add_properties,
+                modify_properties,
             } => {
                 if name.is_none()
-                    && delete_propierties.is_none()
-                    && add_propierties.is_none()
-                    && modify_propierties.is_none()
+                    && delete_properties.is_none()
+                    && add_properties.is_none()
+                    && modify_properties.is_none()
                 {
-                    contract_result.error = "In ModifyProductionSystem name, delete_propierties, add_propierties and modify_propierties can not be None".to_owned();
+                    contract_result.error = "ModifyProductionSystem error: At least one parameter must be provided. Please specify 'name', 'delete_properties', 'add_properties', or 'modify_properties'.".to_owned();
                     return;
                 }
 
                 if let Some(name) = name {
                     if name.is_empty() {
-                        contract_result.error = "New name can not be empty".to_owned();
+                        contract_result.error = "ModifyProductionSystem error: New production system name cannot be empty. Please provide a valid name.".to_owned();
                         return;
                     }
 
                     state.name = name;
                 }
 
-                if let Some(delete_propierties) = delete_propierties {
-                    if delete_propierties.is_empty() {
-                        contract_result.error =
-                            "Porduction system delete propierties can not be a empty Vec"
-                                .to_owned();
+                if let Some(delete_properties) = delete_properties {
+                    if delete_properties.is_empty() {
+                        contract_result.error = "ModifyProductionSystem error: The 'delete_properties' list cannot be empty. Please specify at least one property to delete.".to_owned();
                         return;
                     }
 
-                    for name in delete_propierties.iter() {
-                        if let Some(pos) = state.propierties.iter().position(|x| x.name == *name) {
-                            state.propierties.remove(pos);
+                    for name in delete_properties.iter() {
+                        if let Some(pos) = state.properties.iter().position(|x| x.name == *name) {
+                            state.properties.remove(pos);
                         } else {
                             contract_result.error = format!(
-                                "The Production System propiertie to be eliminated {} does not exist in the production system",
+                                "ModifyProductionSystem error: Cannot delete property '{}'. This property does not exist in the production system.",
                                 name
                             );
                             return;
@@ -906,27 +960,25 @@ fn contract_logic(
                     }
                 }
 
-                if let Some(modify_propierties) = modify_propierties {
-                    if modify_propierties.is_empty() {
-                        contract_result.error =
-                            "Porduction system modify propierties can not be a empty Vec"
-                                .to_owned();
+                if let Some(modify_properties) = modify_properties {
+                    if modify_properties.is_empty() {
+                        contract_result.error = "ModifyProductionSystem error: The 'modify_properties' list cannot be empty. Please specify at least one property to modify.".to_owned();
                         return;
                     }
 
-                    for (name, propiertie) in modify_propierties.clone() {
+                    for (name, propiertie) in modify_properties.clone() {
                         if let Err(e) = propiertie.check_data(&state.custom_types) {
                             contract_result.error = e;
                             return;
                         };
 
                         if let Some(existing) =
-                            state.propierties.iter_mut().find(|x| x.name == name)
+                            state.properties.iter_mut().find(|x| x.name == name)
                         {
                             *existing = propiertie;
                         } else {
                             contract_result.error = format!(
-                                "The propiertie to be modificated {} does not exist in the production system",
+                                "ModifyProductionSystem error: Cannot modify property '{}'. This property does not exist in the production system.",
                                 name
                             );
                             return;
@@ -934,8 +986,8 @@ fn contract_logic(
                     }
                 }
 
-                if let Some(add_propierties) = add_propierties {
-                    if let Err(e) = add_new_propierties(state, add_propierties) {
+                if let Some(add_properties) = add_properties {
+                    if let Err(e) = add_new_properties(state, add_properties) {
                         contract_result.error = e;
                         return;
                     }
@@ -943,16 +995,17 @@ fn contract_logic(
             }
             ChangeProductionSystem::ModifyTypes { delete, add } => {
                 if delete.is_none() && add.is_none() {
-                    contract_result.error =
-                        "In ModifyTypes add and delete can not be None".to_owned();
+                    contract_result.error = "ModifyTypes error: At least one parameter must be provided. Please specify 'add' or 'delete'.".to_owned();
                     return;
                 }
 
                 if let Some(delete) = delete {
                     for name in delete {
                         if state.custom_types.remove(&name).is_none() {
-                            contract_result.error =
-                                format!("The type to be deleted does not exist, type: {}", name);
+                            contract_result.error = format!(
+                                "ModifyTypes error: Cannot delete type '{}'. This type does not exist in the schema.",
+                                name
+                            );
                             return;
                         }
                     }
@@ -971,15 +1024,13 @@ fn contract_logic(
                 delete,
             } => {
                 if delete.is_none() && add.is_none() && modify.is_none() {
-                    contract_result.error =
-                        "In ModifyUnitProcess add, modify and delete can not be None".to_owned();
+                    contract_result.error = "ModifyUnitProcess error: At least one parameter must be provided. Please specify 'add', 'modify', or 'delete'.".to_owned();
                     return;
                 }
 
                 if let Some(delete) = delete {
                     if delete.is_empty() {
-                        contract_result.error =
-                            "Delete unit process can not be a empty Vec".to_owned();
+                        contract_result.error = "ModifyUnitProcess error: The 'delete' list cannot be empty. Please specify at least one unit process to delete.".to_owned();
                         return;
                     }
 
@@ -988,7 +1039,7 @@ fn contract_logic(
                             state.unit_process.remove(pos);
                         } else {
                             contract_result.error = format!(
-                                "The process to be eliminated {} does not exist in the production system",
+                                "ModifyUnitProcess error: Cannot delete unit process '{}'. This unit process does not exist in the production system.",
                                 name
                             );
                             return;
@@ -998,8 +1049,7 @@ fn contract_logic(
 
                 if let Some(modify) = modify {
                     if modify.is_empty() {
-                        contract_result.error =
-                            "Modify unit process can not be a empty Vec".to_owned();
+                        contract_result.error = "ModifyUnitProcess error: The 'modify' list cannot be empty. Please specify at least one unit process to modify.".to_owned();
                         return;
                     }
 
@@ -1015,7 +1065,7 @@ fn contract_logic(
                             *existing = process;
                         } else {
                             contract_result.error = format!(
-                                "The process to be modificated {} does not exist in the production system",
+                                "ModifyUnitProcess error: Cannot modify unit process '{}'. This unit process does not exist in the production system.",
                                 name
                             );
                             return;
@@ -1033,12 +1083,12 @@ fn contract_logic(
         },
         Events::RegisterData(data) => {
             if state.version == 0 {
-                contract_result.error = "The first event must be Init event".to_owned();
+                contract_result.error = "RegisterData error: Cannot register data before initialization. The first event must be an Init event.".to_owned();
                 return;
             }
 
             if data.is_empty() {
-                contract_result.error = "Register data can not be empty".to_owned();
+                contract_result.error = "RegisterData error: The data list cannot be empty. Please provide at least one unit data entry to register.".to_owned();
                 return;
             }
 
@@ -1057,7 +1107,10 @@ fn contract_logic(
                 }
 
                 if !change {
-                    contract_result.error = format!("No processing unit found matching {}", d.name);
+                    contract_result.error = format!(
+                        "RegisterData error: No unit process found with name '{}'. Please ensure the unit process exists before registering data to it.",
+                        d.name
+                    );
                     return;
                 }
             }
@@ -1072,7 +1125,7 @@ mod tests {
     use std::{collections::HashMap, vec};
 
     use crate::{
-        contract_logic, ChangeProductionSystem, Data, DynamicType, Events, Fields, Metadata, ProductionSystem, Propierties, RegisterData, Target, UnitData, UnitProcess
+        contract_logic, ChangeProductionSystem, Data, DynamicType, Events, Fields, Metadata, ProductionSystem, Properties, RegisterData, Target, UnitData, UnitProcess
     };
     use kore_contract_sdk as sdk;
     use serde_json::json;
@@ -1144,7 +1197,7 @@ mod tests {
 
     
 
-    impl PartialEq for Propierties {
+    impl PartialEq for Properties {
         fn eq(&self, other: &Self) -> bool {
             self.name == other.name
                 && self.type_name == other.type_name
@@ -1152,14 +1205,14 @@ mod tests {
         }
     }
     
-    impl Eq for Propierties {}
+    impl Eq for Properties {}
 
     impl PartialEq for UnitProcess {
         fn eq(&self, other: &Self) -> bool {
             self.name == other.name
                 && self.inputs == other.inputs
                 && self.outputs == other.outputs
-                && self.propierties == other.propierties
+                && self.properties == other.properties
         }
     }
 
@@ -1184,7 +1237,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: types,
-            propierties: vec![],
+            properties: vec![],
         };
 
         let mut custom_type = HashMap::new();
@@ -1230,7 +1283,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -1293,7 +1346,7 @@ mod tests {
                 targets: None,
                 metadata: Some(Metadata { type_name: "UserObject".to_owned(), content: json!({"name": "Metadata"}) }),
             }],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -1343,7 +1396,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -1406,7 +1459,7 @@ mod tests {
                 targets: None,
                 metadata: None,
             }],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -1455,7 +1508,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -1518,7 +1571,7 @@ mod tests {
                 targets: None,
                 metadata: None,
             }],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -1567,7 +1620,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -1630,7 +1683,7 @@ mod tests {
                 targets: None,
                 metadata: None,
             }],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -1679,7 +1732,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -1742,7 +1795,7 @@ mod tests {
                 targets: None,
                 metadata: None,
             }],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -1791,7 +1844,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -1854,7 +1907,7 @@ mod tests {
                 targets: None,
                 metadata: None,
             }],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -1903,7 +1956,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -1955,7 +2008,7 @@ mod tests {
                 metadata: None,
             }],
             inputs: vec![],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -1984,7 +2037,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2039,7 +2092,7 @@ mod tests {
                 metadata: None,
             }],
             inputs: vec![],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2069,7 +2122,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2141,7 +2194,7 @@ mod tests {
                 targets: None,
                 metadata: None,
             }],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2193,7 +2246,7 @@ mod tests {
                     content: json!({"Data": "info"}),
                     targets: None,
                 }]),
-                propierties: None,
+                properties: None,
             }]),
             is_owner: false,
         };
@@ -2231,7 +2284,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2298,7 +2351,7 @@ mod tests {
                 metadata: None,
             }],
             inputs: vec![],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2328,7 +2381,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2388,7 +2441,7 @@ mod tests {
                 targets: None,
                 metadata: None,
             }],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2433,7 +2486,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2483,7 +2536,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2542,7 +2595,7 @@ mod tests {
                 metadata: None,
             }],
             inputs: vec![],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2571,7 +2624,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2659,7 +2712,7 @@ mod tests {
                 targets: None,
                 metadata: None,
             }],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2709,7 +2762,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         ////////////////////////////////////////////////////////////////
@@ -2725,7 +2778,7 @@ mod tests {
                 metadata: None,
             }],
             inputs: vec![],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2752,15 +2805,15 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
             event: Events::ChangeProductionSystem(ChangeProductionSystem::ModifyProductionSystem {
                 name: Some("wine process 2".to_owned()),
-                delete_propierties: None,
-                modify_propierties: None,
-                add_propierties: None,
+                delete_properties: None,
+                modify_properties: None,
+                add_properties: None,
             }),
             is_owner: false,
         };
@@ -2780,7 +2833,7 @@ mod tests {
             version: 0,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2802,13 +2855,13 @@ mod tests {
                         targets: None,
                         metadata: None,
                     }],
-                    propierties: vec![Propierties {
+                    properties: vec![Properties {
                         name: "Example String".to_owned(),
                         type_name: "String".to_owned(),
                         content: json!("ExampleString"),
                     }],
                 }]),
-                propierties: Some(vec![Propierties {
+                properties: Some(vec![Properties {
                     name: "Example Object".to_owned(),
                     type_name: "UserObject".to_owned(),
                     content: json!({"name": "ExampleName"}),
@@ -2832,10 +2885,10 @@ mod tests {
 
         assert_eq!(result.state.name, "wine process");
         assert_eq!(result.state.version, 1);
-        assert_eq!(result.state.propierties.len(), 1);
+        assert_eq!(result.state.properties.len(), 1);
         assert_eq!(
-            result.state.propierties[0],
-            Propierties {
+            result.state.properties[0],
+            Properties {
                 name: "Example Object".to_owned(),
                 type_name: "UserObject".to_owned(),
                 content: json!({"name": "ExampleName"}),
@@ -2860,7 +2913,7 @@ mod tests {
                     targets: None,
                     metadata: None
                 }],
-                propierties: vec![Propierties {
+                properties: vec![Properties {
                     name: "Example String".to_owned(),
                     type_name: "String".to_owned(),
                     content: json!("ExampleString"),
@@ -2888,7 +2941,7 @@ mod tests {
             version: 1,
             unit_process: vec![],
             custom_types: HashMap::new(),
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -2951,7 +3004,7 @@ mod tests {
                 targets: None,
                 metadata: None,
             }],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
@@ -3008,7 +3061,7 @@ mod tests {
                 targets: None,
                 metadata: None,
             }],
-            propierties: vec![],
+            properties: vec![],
         };
 
         let context = sdk::Context {
